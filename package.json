@@ -1,0 +1,11 @@
+{
+  "name": "king-auth",
+  "version": "0.0.1",
+  "private": true,
+  "description": "King Auth deployment smoke test",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node app.js",
+    "check": "node --check app.js"
+  }
+}

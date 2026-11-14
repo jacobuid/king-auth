@@ -1,0 +1,57 @@
+name: Deploy Hello World
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hostdive-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SSH_HOST: ${{ vars.SSH_HOST || 'lv-shared01.dapanel.net' }}
+      SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+      SSH_USER: xdjzyshp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm run check
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$DEPLOY_SSH_KEY" || { echo 'Missing DEPLOY_SSH_KEY secret'; exit 1; }
+          test -n "$SSH_KNOWN_HOSTS" || { echo 'Missing SSH_KNOWN_HOSTS secret'; exit 1; }
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Upload and restart
+        run: |
+          ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'mkdir -p /home/xdjzyshp/king-auth/tmp'
+          scp -P "$SSH_PORT" -o BatchMode=yes app.js package.json "$SSH_USER@$SSH_HOST:/home/xdjzyshp/king-auth/"
+          ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'touch /home/xdjzyshp/king-auth/tmp/restart.txt'
+      - name: Verify public response
+        run: |
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --max-time 10 https://kingauth.app/ | grep -Fx 'Hello World! King Auth is running.'; then
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
+      - name: Remove SSH credentials
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519
