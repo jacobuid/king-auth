@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 5
     env:
       SSH_HOST: ${{ vars.SSH_HOST || 'lv-shared01.dapanel.net' }}
-      SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+      SSH_PORT: ${{ vars.SSH_PORT || '53667' }}
       SSH_USER: xdjzyshp
     steps:
       - uses: actions/checkout@v4
