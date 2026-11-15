@@ -17,6 +17,7 @@ export function loadConfig(env = process.env) {
     database: env.DB_NAME ? { host: env.DB_HOST || 'localhost', port: Number(env.DB_PORT || 3306), database: env.DB_NAME, user: env.DB_USER, password: databasePassword, connectionLimit: 3, timezone: 'Z' } : null,
     sqlitePath: env.SQLITE_PATH || '.local/king-auth.sqlite',
     adminIds: (env.KING_AUTH_ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
+    approval: {required:production || env.SIGNUP_APPROVAL_REQUIRED!=='false',ownerEmail:'jacobuid@gmail.com'},
     mail: { host: env.SMTP_HOST, port: Number(env.SMTP_PORT || 587), user: env.SMTP_USER, pass: smtpPassword, from: env.MAIL_FROM || 'King Auth <noreply@kingauth.app>', sendmail: env.SENDMAIL_PATH },
     sms: { sid: env.TWILIO_ACCOUNT_SID, token: env.TWILIO_AUTH_TOKEN, from: env.TWILIO_FROM },
   };

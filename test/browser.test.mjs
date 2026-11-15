@@ -15,6 +15,7 @@ test('unstyled React signup, account controls, backend check and sign-out in Chr
   try{
     await page.goto(f.url);await page.getByRole('button',{name:'Create account',exact:true}).click();
     assert.equal(await page.locator('input[name=username],input[type=tel]').count(),0);
+    assert.equal(await page.locator('input[name=website]').isVisible(),false);
     await page.getByLabel('Email address',{exact:true}).fill(f.user.email);
     await page.getByLabel('Create password',{exact:true}).fill(f.user.password);
     await page.getByLabel('Confirm new password',{exact:true}).fill(f.user.password);
@@ -42,6 +43,17 @@ test('unstyled React signup, account controls, backend check and sign-out in Chr
     await page.getByRole('button',{name:'Sign out',exact:true}).last().click();
     await page.getByRole('heading',{name:'Sign in',exact:true}).waitFor();
     assert.equal((await page.request.get(f.url+'/api/private')).status(),401);
+    await page.getByLabel('Email address',{exact:true}).fill(f.user.email);
+    await page.getByLabel('Password',{exact:true}).fill('Incorrect password 123!');
+    await page.locator('form').getByRole('button',{name:'Sign in',exact:true}).click();
+    await page.getByRole('alert').filter({hasText:'Invalid email or password'}).waitFor();
+    await page.locator('form').getByRole('button',{name:'Sign in',exact:true}).click();
+    await page.getByLabel('Code sent to your email',{exact:true}).waitFor();
+    await page.waitForFunction(()=>!document.querySelector('fieldset')?.disabled);
+    await page.getByLabel('Password',{exact:true}).fill(f.user.password);
+    await page.getByLabel('Code sent to your email',{exact:true}).fill(f.sent.at(-1).otp);
+    await page.locator('form').getByRole('button',{name:'Sign in',exact:true}).click();
+    await page.getByTestId('signed-in').waitFor();
     assert.deepEqual(errors,[]);
   }finally{await browser.close();await f.close();}
 });

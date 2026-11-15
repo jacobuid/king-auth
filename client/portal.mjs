@@ -31,25 +31,28 @@ function form(id, action) {
     finally { button.disabled = false; }
   });
 }
-async function call(promise) { const result = await promise; if (result.error) throw new Error(result.error.message || 'Request failed.'); return result.data; }
+async function call(promise) { const result = await promise; if (result.error) {const error=new Error(result.error.message || 'Request failed.');error.code=result.error.code;throw error;} return result.data; }
+async function sendLoginCode(email){const response=await fetch('/api/auth/sign-in-code/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});if(!response.ok)throw Error('Unable to send a sign-in code. Please try again later.');}
 function navigate(data, fallback = '/account') { if (data?.redirect && data.url) location.assign(data.url); else location.assign(fallback); }
 async function signIn(data) {
   const identifier = data.identifier.trim();
-  const body = { password: data.password, callbackURL: '/account' };
-  const result = identifier.includes('@') ? await call(auth.signIn.email({ ...body, email: identifier })) : identifier.startsWith('+') ? await call(auth.signIn.phoneNumber({ ...body, phoneNumber: identifier })) : await call(auth.signIn.username({ ...body, username: identifier }));
-  navigate(result);
+  const body = { password: data.password, callbackURL: '/account',loginCode:data.loginCode };
+  try{const result=await call(auth.signIn.email({...body,email:identifier}));navigate(result);}
+  catch(error){if(error.code==='EMAIL_CODE_REQUIRED'){const field=document.querySelector('#login-code');if(field.hidden){field.hidden=false;field.querySelector('input').required=true;await sendLoginCode(identifier);}}throw error;}
 }
 if (path === '/sign-in') {
   layout(`${tabs}<h2>Sign in</h2><p class="subtext">Sign in to your King Auth account.</p><form id="signin">${input('identifier','Email address','email','you@example.com','autocomplete="username"')}${password()}<a class="small-link" href="${link('/forgot-password')}">Forgot your password?</a>${notice}<br>${submit('Sign in')}</form><a class="small-link" href="${link('/verify-email')}">Verify your email</a>`);
   form('signin', signIn);
+  const extra=document.createElement('div');extra.id='login-code';extra.hidden=true;extra.innerHTML=`${code('loginCode','Code sent to your email')}<button type="button" id="send-login-code">Send sign-in code</button>`;document.querySelector('#signin button[type=submit]').before(extra);
+  document.querySelector('#send-login-code').onclick=async()=>{try{await sendLoginCode(document.querySelector('#identifier').value);status('If needed, a code was sent. Wait one minute before requesting another.');}catch(error){status(error.message,true);}};
 } else if (path === '/sign-up') {
-  layout(`${tabs}<h2>Create account</h2><p class="subtext">Create one account for every connected site.</p>${!config.emailEnabled ? '<div class="status">Account registration will be available once email delivery is configured.</div>' : ''}<form id="signup">${input('email','Email address','email','you@example.com','autocomplete="email"')}${password('password','Create a password',true)}${notice}${submit('Create account')}</form><p class="form-note">We'll send a code to verify your email.<br>Your account works across all King Auth connected sites.</p>`);
+  layout(`${tabs}<h2>Create account</h2><p class="subtext">Create one account for every connected site.</p>${!config.emailEnabled ? '<div class="status">Account registration will be available once email delivery is configured.</div>' : ''}<form id="signup">${input('email','Email address','email','you@example.com','autocomplete="email"')}${password('password','Create a password',true)}<div hidden aria-hidden="true"><label>Leave this field empty<input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>${notice}${submit('Create account')}</form><p class="form-note">We'll send a code to verify your email.<br>Your account works across all King Auth connected sites.</p>`);
   if (!config.emailEnabled) document.querySelector('button[type=submit]').disabled = true;
   form('signup', async data => { await call(auth.signUp.email({...data,name:data.email.split('@')[0]})); query.set('email',data.email); location.assign('/verify-email?' + query); });
 } else if (path === '/verify-email') {
   layout(`<h2>Check your inbox.</h2><p class="subtext">Enter the code sent to your email to verify your account.</p><form id="verify">${input('email','Email address','email','you@example.com',`autocomplete="email" value="${escape(query.get('email'))}"`)}${code()}${notice}${submit('Verify email')}</form><button class="secondary wide" id="resend">Send a new code</button>`);
   document.querySelector('#resend').addEventListener('click', async event => { event.target.disabled = true; try { await call(auth.emailOtp.sendVerificationOtp({ email: document.querySelector('#email').value,type:'email-verification' })); status('If this address can be verified, a code is on its way.'); } catch(error){status(error.message,true);} finally{event.target.disabled=false;} });
-  form('verify', async data => { const result = await call(auth.emailOtp.verifyEmail(data)); if (query.has('sig')) { const continued = await call(auth.oauth2.continue({ postLogin:true })); navigate(continued); } else navigate(result); });
+  form('verify', async data => { const result = await call(auth.emailOtp.verifyEmail(data)); if(result?.user?.approvalStatus==='pending'){status('Email verified. Your account is awaiting owner approval.');return;} if (query.has('sig')) { const continued = await call(auth.oauth2.continue({ postLogin:true })); navigate(continued); } else navigate(result); });
 } else if (path === '/forgot-password') {
   layout(`<h2>Reset password</h2><p class="subtext">We'll send a reset code to your verified email or phone.</p><form id="forgot">${input('identifier','Email address or phone','text','you@example.com')}${notice}${submit('Send reset code')}</form><a class="small-link" href="${link('/sign-in')}">Back to sign in</a>`);
   form('forgot', async (data,el) => { const phone = data.identifier.startsWith('+'); if(phone) await call(auth.phoneNumber.requestPasswordReset({phoneNumber:data.identifier})); else await call(auth.emailOtp.requestPasswordReset({email:data.identifier})); status('If an account matches, a reset code is on its way.',false,el); query.set('identifier',data.identifier); location.assign('/reset-password?'+query); });

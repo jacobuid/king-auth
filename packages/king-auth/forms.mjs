@@ -35,27 +35,29 @@ function Form({title,fields,action,submitLabel='Continue',actions=[],onSuccess,o
     h('h2',null,title),
     h('fieldset',{disabled:busy,className:'king-auth-fields'},
       ...fields.map(({name,label,type='text',required=true,options,...props})=>h('div',{key:name,className:'king-auth-field'},
-        type==='checkbox'?h('label',{htmlFor:prefix+name},h('input',{id:prefix+name,name,type,...props}),' '+label):h(React.Fragment,null,h('label',{htmlFor:prefix+name},label),type==='select'?h('select',{id:prefix+name,name,required,...props},options.map(([value,text])=>h('option',{key:value,value},text))):h('input',{id:prefix+name,name,type,required,...props})))),
+        type==='honeypot'?h('div',{hidden:true,'aria-hidden':true},h('label',{htmlFor:prefix+name},label),h('input',{id:prefix+name,name,type:'text',tabIndex:-1,autoComplete:'off'})):type==='checkbox'?h('label',{htmlFor:prefix+name},h('input',{id:prefix+name,name,type,...props}),' '+label):h(React.Fragment,null,h('label',{htmlFor:prefix+name},label),type==='select'?h('select',{id:prefix+name,name,required,...props},options.map(([value,text])=>h('option',{key:value,value},text))):h('input',{id:prefix+name,name,type,required,...props})))),
       h('button',{type:'submit'},busy?'Working...':submitLabel),
       ...actions.map(item=>h('button',{key:item.label,type:'button',onClick:()=>execute(item.action,false)},item.label))),
     h('p',{className:failed?'king-auth-error':'king-auth-status',role:failed?'alert':'status','aria-live':'polite'},message));
 }
 export function SignIn(props={}){
-  const {call}=useAuth();
-  return h(Form,{title:'Sign in',submitLabel:'Sign in',...props,fields:[emailField(),passwordField(),rememberField],action:async data=>{
-    return {data:await call('sign-in/email',{email:data.email.trim(),password:data.password,rememberMe:data.rememberMe==='on'}),message:'Signed in.'};
+  const {call}=useAuth();const [needsCode,setNeedsCode]=useState(false);
+  const send=async data=>({data:await call('sign-in-code/send',{email:data.email.trim()}),message:'If this account needs a sign-in code, one was sent. Wait one minute before requesting another.'});
+  return h(Form,{title:'Sign in',submitLabel:'Sign in',...props,fields:[emailField(),passwordField(),...(needsCode?[otpField('loginCode','Code sent to your email')]:[]),rememberField],actions:needsCode?[{label:'Send sign-in code',action:send}]:[],action:async data=>{
+    try{return {data:await call('sign-in/email',{email:data.email.trim(),password:data.password,rememberMe:data.rememberMe==='on',...(needsCode?{loginCode:data.loginCode}:{})}),message:'Signed in.'};}
+    catch(error){if(error.code==='EMAIL_CODE_REQUIRED'){setNeedsCode(true);if(!needsCode)await send(data);}throw error;}
   }});
 }
 export const SignInButton=SignIn;
 export function SignUp(props={}){
   const {call}=useAuth();const [email,setEmail]=useState(null);
   if(email)return h(VerifyEmail,{email,onSuccess:props.onSuccess,onError:props.onError,className:props.className,style:props.style});
-  return h(Form,{title:'Create account',submitLabel:'Create account',...props,onSuccess:undefined,fields:[emailField(),passwordField('newPassword','Create password',true),confirmPassword(),rememberField],action:async data=>{matched(data);await call('sign-up/email',{email:data.email,name:data.email.split('@')[0],password:data.newPassword,rememberMe:data.rememberMe==='on'});setEmail(data.email);return {message:'Check your email for a verification code.'};}});
+  return h(Form,{title:'Create account',submitLabel:'Create account',...props,onSuccess:undefined,fields:[emailField(),passwordField('newPassword','Create password',true),confirmPassword(),rememberField,{name:'website',label:'Leave this field empty',type:'honeypot',required:false}],action:async data=>{matched(data);await call('sign-up/email',{email:data.email,name:data.email.split('@')[0],password:data.newPassword,rememberMe:data.rememberMe==='on',website:data.website||''});setEmail(data.email);return {message:'Check your email for a verification code.'};}});
 }
 export const SignUpButton=SignUp;
 export function VerifyEmail({email,...props}={}){
   const {call}=useAuth();
-  return h(Form,{title:'Verify email',submitLabel:'Verify email',...props,fields:[emailField(email),otpField()],action:async data=>({data:await call('email-otp/verify-email',data),message:'Email verified.'}),actions:[{label:'Send code',action:async data=>{await call('email-otp/send-verification-otp',{email:data.email,type:'email-verification'});return {message:'If the address can be verified, a code is on its way.'};}}]});
+  return h(Form,{title:'Verify email',submitLabel:'Verify email',...props,fields:[emailField(email),otpField()],action:async data=>{const result=await call('email-otp/verify-email',data);return {data:result,message:result?.user?.approvalStatus==='pending'?'Email verified. Your account is awaiting owner approval. You can sign in once approved.':'Email verified. You can now sign in.'};},actions:[{label:'Send code',action:async data=>{await call('email-otp/send-verification-otp',{email:data.email,type:'email-verification'});return {message:'If the address can be verified, a code is on its way.'};}}]});
 }
 export function SendCode({purpose='email-verification',email,...props}={}){
   const {call}=useAuth();if(!['email-verification','forget-password'].includes(purpose))throw Error('Unsupported code purpose');

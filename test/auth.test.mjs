@@ -11,7 +11,7 @@ import { toNodeHandler } from 'better-auth/node';
 import { createKingAuth } from '../packages/king-auth/server.mjs';
 
 async function fixture(baseURL='http://localhost:3000') {
-  const config=loadConfig({AUTH_BASE_URL:baseURL});
+  const config=loadConfig({AUTH_BASE_URL:baseURL,SIGNUP_APPROVAL_REQUIRED:'false'});
   const database=new DatabaseSync(':memory:');
   const sent=[];const sms=[];
   const sender={emailEnabled:true,smsEnabled:true,email:async data=>sent.push(data),sms:async data=>sms.push(data)};

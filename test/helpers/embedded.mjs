@@ -7,10 +7,10 @@ import {createAuth} from '../../server/auth.mjs';
 import {loadConfig} from '../../server/config.mjs';
 import {createKingAuthServer} from '../../packages/king-auth/server.mjs';
 
-export async function embeddedFixture(extraHandler){
-  const database=new DatabaseSync(':memory:');const sent=[];
-  const config=loadConfig({AUTH_BASE_URL:'http://localhost:3000'});
-  const auth=createAuth({config,database,sender:{emailEnabled:true,smsEnabled:false,email:async data=>sent.push(data),sms:async()=>{throw Error('No SMS');}}});
+export async function embeddedFixture(extraHandler,{approval=false}={}){
+  const database=new DatabaseSync(':memory:');const sent=[],reviews=[];
+  const config=loadConfig({AUTH_BASE_URL:'http://localhost:3000',SIGNUP_APPROVAL_REQUIRED:String(approval)});
+  const auth=createAuth({config,database,sender:{emailEnabled:true,smsEnabled:false,email:async data=>sent.push(data),signupRequest:async data=>reviews.push(data),sms:async()=>{throw Error('No SMS');}}});
   await(await getMigrations(auth.options)).runMigrations();
   let requests=0;
   let adapter;
@@ -33,5 +33,5 @@ export async function embeddedFixture(extraHandler){
     assert.equal((await request('get-session')).data,null);
     const verified=await request('email-otp/verify-email',{email:user.email,otp:sent.at(-1).otp});assert.equal(verified.status,200,JSON.stringify(verified.data));return result.data.user.id;
   }
-  return {auth,database,sent,adapter,server,url,user,request,signup,getCookie:()=>cookie,setCookie:value=>{cookie=value;},getRequests:()=>requests,close:async()=>{await new Promise(resolve=>server.close(resolve));database.close();}};
+  return {auth,database,sent,reviews,adapter,server,url,user,request,signup,getCookie:()=>cookie,setCookie:value=>{cookie=value;},getRequests:()=>requests,close:async()=>{await new Promise(resolve=>server.close(resolve));database.close();}};
 }

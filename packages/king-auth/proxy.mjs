@@ -5,10 +5,11 @@ const MAX_SECONDS = 3 * 365 * 86400;
 const BROWSER_COOKIE_SECONDS = 400 * 86400;
 const routes = new Map([
   ['get-session', ['GET', []]], ['sign-out', ['POST', []]],
-  ['sign-in/email', ['POST', ['email','password','rememberMe']]],
-  ['sign-in/username', ['POST', ['username','password','rememberMe']]],
-  ['sign-in/phone-number', ['POST', ['phoneNumber','password','rememberMe']]],
-  ['sign-up/email', ['POST', ['name','email','username','password','rememberMe']]],
+  ['sign-in/email', ['POST', ['email','password','rememberMe','loginCode']]],
+  ['sign-in-code/send',['POST',['email']]],
+  ['sign-in/username', ['POST', ['username','password','rememberMe','loginCode']]],
+  ['sign-in/phone-number', ['POST', ['phoneNumber','password','rememberMe','loginCode']]],
+  ['sign-up/email', ['POST', ['name','email','username','password','rememberMe','website']]],
   ['email-otp/send-verification-otp', ['POST', ['email','type']]],
   ['email-otp/verify-email', ['POST', ['email','otp']]],
   ['email-otp/request-password-reset', ['POST', ['email']]],
@@ -122,7 +123,7 @@ export function createKingAuthProxy({ origin, secret, issuer='https://kingauth.a
       if(response.ok){
         if(route==='sign-out')putCookie(res,'',0);
         else {
-          if(route==='email-otp/verify-email'){
+          if(route==='email-otp/verify-email'&&Object.keys(state.jar).some(name=>name.endsWith('.session_token'))){
             delete state.exp;state.expires=undefined;
             const duration=await upstream('account/session-duration',state,{seconds:state.remember?MAX_SECONDS:86400});
             if(!duration.response.ok)throw Error('Session duration could not be applied');

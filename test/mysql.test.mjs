@@ -9,7 +9,7 @@ test('MySQL production adapter migrates and persists verified identities', { ski
   // A dedicated ephemeral CI service, never the hosting database.
   const database = createPool({ host: '127.0.0.1', port: 3306, user: 'root', password: process.env.CI_MYSQL_PASSWORD, database: 'king_auth_ci_test', timezone: 'Z' });
   const deliveries = [];
-  const config = loadConfig({ AUTH_BASE_URL: 'http://localhost:3000' });
+  const config = loadConfig({ AUTH_BASE_URL: 'http://localhost:3000', SIGNUP_APPROVAL_REQUIRED:'false' });
   const auth = createAuth({ config, database, sender: { emailEnabled: true, smsEnabled: false, email: async data => deliveries.push(data) } });
   try {
     await (await getMigrations(auth.options)).runMigrations();

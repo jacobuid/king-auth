@@ -7,6 +7,7 @@ This document records the deployed setup and intended architecture as of 2026-11
 - Shared global user pool, permanent UUID primary key. Emails may change after proving both old/new addresses.
 - Primary integration: unstyled React forms inside consuming sites plus a same-origin Node backend adapter. No public marketing page at kingauth.app; root returns an empty 404. Documentation stays in GitHub. Required central auth/consent/account routes remain for compatibility; `/developers` requires a verified administrator.
 - Email-only default signup. No SMS provider is configured. Username/phone APIs are optional legacy functionality; do not add them back to default forms without a request.
+- Family-only access: all new production users require explicit approval emailed to jacobuid@gmail.com. A hidden signup honeypot is checked centrally. Two incorrect passwords require an emailed verification code before another password attempt; five incorrect passwords lock the account and revoke sessions. The owner gets one alert per lock event with unlock/delete/set-password links. No math challenge is used. Owner links are action-bound, single-use, seven-day bearer secrets with GET previews and explicit POST confirmation.
 - Account component: email/password changes, current/new/confirm password, session duration up to three years, session review/revocation, sign-out. Sensitive changes require a recent sign-in. Cookies can disappear before the server deadline.
 - Shared accounts do not automatically share cookies or site permissions. Embedded integrations recheck central sessions; standalone OIDC integrations manage their own local sessions and logout.
 - The user has authorized implementation and automatic deployment to the existing hosting. Do not repeatedly ask them to reenter already configured database or SMTP passwords. Do not publish npm packages or send support tickets without authorization.
@@ -20,6 +21,7 @@ This document records the deployed setup and intended architecture as of 2026-11
 | `server/auth.mjs` | Better Auth plugins, UUIDs, OTPs, session caps/control endpoints, recent sign-in, OAuth policy |
 | `server/config.mjs` | Environment/private-file configuration, production checks |
 | `server/delivery.mjs` | Verified-TLS SMTP or explicit sendmail; optional Twilio |
+| `server/approval.mjs`, `server/abuse.mjs` | Owner signup approval, per-account failed passwords, email step-up and owner lock recovery |
 | `client/portal.mjs`, `public/` | Minimal central compatibility UI; built `public/app.js` is ignored |
 | `packages/king-auth/forms.mjs` | Unstyled React components and session context |
 | `packages/king-auth/proxy.mjs` | Same-origin adapter, encrypted cookie, central verification, CSRF/route/body allowlist |
@@ -78,6 +80,8 @@ Website A points to162.244.93.2; www CNAME to kingauth.app. Initial wildcard TLS
 
 Startup runs additive schema migrations and refuses unsafe ones. Deployments update in place, so they do not provide automatic rollback or zero downtime. To recover a code regression, revert the code commit and deploy; do not blindly roll back database schemas. Take backups before upgrades and preserve the node_modules symlink/Passenger routing.
 
+A private SQL dump was created under the server's `.backups/pre-approval-*.sql` before the owner-approval/lockout schema deployment. Files are mode600, directory700; credentials were supplied through a temporary private client config, not command arguments. The temporary config was removed. This one-time snapshot is not a scheduled, restore-tested backup policy.
+
 Useful nonsecret checks: HTTPS `/health` should return ok, `/api/config` should report email enabled/SMS disabled, `/` intentionally returns blank404, anonymous `/developers`404, OIDC discovery at `/.well-known/openid-configuration`. A health response confirms initialization/schema success, not continuous DB availability or mail deliverability.
 
 ## Security and remaining work
@@ -87,5 +91,9 @@ Central bearer tokens are revocable DB sessions; the adapter encrypts them in Ht
 The central rate-limit IP header is overwritten from the socket peer. A consuming site's backend aggregates requests under its server IP. Do not trust arbitrary browser X-Forwarded-For to bypass this. A trusted proxy/client-IP policy and capacity/rate-limit plan are needed before onboarding many sites/users.
 
 No owner/admin account is automatically granted privileges. Create/verify an owner, then explicitly configure its UUID in KING_AUTH_ADMIN_IDS if OIDC client registration is needed. Embedded integration does not require OAuth client registration. Websites must implement their own membership/authorization checks using UUIDs.
+
+Approval is enabled by default and forced on in production. Tests disable it only in isolated fixtures that test unrelated features. New accounts are pending; existing accounts default approved during the additive migration. Denied accounts remain stored and blocked. Owner deletion permanently deletes the central user, credential accounts and sessions; consuming-site data keyed by UUID is not deleted automatically. Protect owner email links and prevent proxy/access logs from retaining query tokens. They grant the stated action to whoever possesses them and do not require a separate owner login. Password-action links require matching new passwords and revoke sessions. If an owner action fails after its atomic claim, the account remains locked and requires operator recovery; do not unlock on partial failure.
+
+Sign-in-code records use keyed hashes, five-minute expiry, atomic single-use consumption, three guesses and a one-minute per-account resend cooldown. A correct code is consumed even if the accompanying password is wrong. Five wrong passwords across IPs produce one atomic lock event/notification; successful login resets the count. Invalid/missing codes do not increment the wrong-password counter. Self-service password reset does not unlock an owner-locked account. SMTP failures must never auto-approve or auto-unlock users. Notification delivery/retry monitoring is still an operating requirement; a database lock is authoritative even if mail delivery fails.
 
 Remaining operating work: authoritative SPF/DKIM and external delivery checks, restore-tested backups, monitoring/alerts, capacity/rate planning, host-license repair, and npm publication if requested. SMS, account deletion/export, MFA/passkeys, automated back-channel OIDC logout and zero-downtime release infrastructure are not implemented. Do not silently present them as finished features.

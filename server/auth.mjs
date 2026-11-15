@@ -4,19 +4,26 @@ import { setSessionCookie } from 'better-auth/cookies';
 import { z } from 'zod';
 import { emailOTP, phoneNumber, username, jwt } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
+import { approvalPolicy } from './approval.mjs';
+import { abusePolicy } from './abuse.mjs';
 
 export function createAuth({ config, database, sender }) {
   const isAdmin = user => Boolean(user && config.adminIds.includes(user.id) && user.emailVerified);
+  const approval=approvalPolicy(config,sender);
+  const abuse=abusePolicy(config,sender);
   return betterAuth({
     appName: 'King Auth', baseURL: config.baseURL, basePath: '/api/auth', secret: config.secret, database,
     trustedOrigins: [config.baseURL], disabledPaths: ['/token', '/change-email'],
     emailAndPassword: { enabled: true, minPasswordLength: 12, maxPasswordLength: 128, requireEmailVerification: true, revokeSessionsOnPasswordReset: true },
-    emailVerification: { autoSignInAfterVerification: true },
+    user:{additionalFields:{...approval.fields,...abuse.fields}},
+    emailVerification: { autoSignInAfterVerification: !config.approval.required },
     // Remembered sessions have a fixed three-year ceiling, not an endless sliding expiry.
     // HTTP cookies are limited to 400 days by the serializer/browser. The database
     // is authoritative and may retain remembered sessions for up to three years.
     session: { expiresIn: 400 * 86400, disableSessionRefresh: true, freshAge: 600, storeSessionInDatabase: true },
-    databaseHooks: {session:{create:{before:async session=>{
+    databaseHooks: {user:{create:approval.userCreate},session:{create:{before:async(session,ctx)=>{
+      await approval.checkSession(session.userId,ctx);
+      await abuse.checkSession(session.userId,ctx);
       const created=new Date(session.createdAt).getTime();
       const remembered=new Date(session.expiresAt).getTime()-created>2*86400000;
       return {data:{...session,expiresAt:new Date(created+(remembered?3*365*86400000:86400000))}};
@@ -25,8 +32,11 @@ export function createAuth({ config, database, sender }) {
     rateLimit: { enabled: true, storage: 'database', window: 60, max: 60, customRules: {
       '/sign-in/*': { window: 60, max: 5 }, '/sign-up/*': { window: 60, max: 3 },
       '/email-otp/*': { window: 60, max: 5 }, '/phone-number/*': { window: 60, max: 5 },
+      '/sign-in-code/send':{window:60,max:5},
     } },
     hooks: { before: createAuthMiddleware(async ctx => {
+      if(ctx.path==='/sign-up/email' && ctx.body?.website)throw new APIError('BAD_REQUEST',{message:'Unable to create account.'});
+      await abuse.before(ctx);
       if (!sender.emailEnabled && (ctx.path === '/sign-up/email' || ctx.path.startsWith('/email-otp/'))) {
         throw new APIError('SERVICE_UNAVAILABLE', { message: 'Email delivery is not configured yet. Contact the site owner.' });
       }
@@ -40,8 +50,10 @@ export function createAuth({ config, database, sender }) {
           throw new APIError('UNAUTHORIZED', { message: 'Please sign in again before changing your account.' });
         }
       }
-    }) },
+    }),after:createAuthMiddleware(ctx=>abuse.after(ctx)) },
     plugins: [
+      approval.plugin,
+      abuse.plugin,
       { id: 'king-account', endpoints: {
         sessionDuration: createAuthEndpoint('/account/session-duration', {
           method:'POST', use:[freshSessionMiddleware],

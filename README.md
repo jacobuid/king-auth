@@ -4,6 +4,10 @@ Self-hosted authentication service and unstyled React library. All consuming web
 
 Signup asks for email and password, followed by an emailed verification code. The account component supports verified email changes, current/new/confirm password, session duration, reviewing sessions, and signing out individual or other sessions. SMS is not configured; phone and username are absent from the default React signup and account components. Existing optional username/phone server APIs remain for compatibility.
 
+New signups require owner approval. Each request emails **jacobuid@gmail.com** with private approve/deny links. Each link opens a confirmation page; merely opening it cannot make a decision. Links expire after seven days and are single-use. A pending or denied account cannot sign in, even with a verified email. Existing accounts are preserved when this policy is introduced. Signup includes a hidden, autofill-disabled honeypot field checked on the server.
+
+After two incorrect passwords, another attempt requires a single-use code sent to that account's email. Codes expire in five minutes, allow three code guesses and have a one-minute resend cooldown. A code is consumed for one password attempt, even when that password is wrong. After five wrong passwords the account is locked, existing sessions are revoked, and the owner receives one notification for that lock event, with confirmation links to unlock, permanently delete, or set a new password. These links also expire after seven days and cannot be used for a different action. Successful sign-in resets the failed-password count. Self-service password reset does not bypass an owner lock.
+
 `kingauth.app/` deliberately returns an empty 404. No public marketing page or implementation guide is hosted there. Required authentication routes remain available; `/developers` is restricted to explicitly configured, verified administrators. Read [the operating handoff](docs/OPERATIONS.md) before changing hosting or credentials.
 
 ## How websites integrate
@@ -103,6 +107,8 @@ npm run build
 ```
 
 For local service development, copy `.env.example` to ignored `.env`, set `NODE_ENV=development`, `AUTH_BASE_URL=http://localhost:3000`, and omit `DB_NAME` to use SQLite under ignored `.local/`. Run `npm start`; navigate to `/sign-in`, not the intentionally blank root. Configure real SMTP to try registration manually; tests use an isolated message sink and send no real emails or texts.
+
+Approval defaults on. Isolated development/test environments may set `SIGNUP_APPROVAL_REQUIRED=false`; production always requires owner approval. Owner links contain bearer secrets: do not forward them or log their query strings, and protect the owner's mailbox with MFA. The honeypot is a basic bot filter; edge DDoS protection and monitoring remain separate operating tasks.
 
 The [example](examples/website/server.mjs) runs a second website on port 4000. In `examples/website`, copy `.env.example` to `.env`, generate a fresh random `SESSION_SECRET`, run `npm install`, `npm run build`, then `npm start`. Set `KING_AUTH_ISSUER=http://localhost:3000/api/auth` for a local auth service. The default uses production King Auth. Local HTTP is explicitly allowed only for loopback development; production requires HTTPS. No OAuth client registration is needed for the embedded adapter.
 
