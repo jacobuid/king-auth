@@ -48,9 +48,10 @@ jobs:
           ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'mkdir -p /home/xdjzyshp/king-auth/tmp'
           scp -P "$SSH_PORT" -o BatchMode=yes deploy.tar.gz "$SSH_USER@$SSH_HOST:/home/xdjzyshp/king-auth/deploy.tar.gz"
           ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'bash -s' <<'DEPLOY'
-          set -euo pipefail
+          set -eo pipefail
           cd /home/xdjzyshp/king-auth
           source /home/xdjzyshp/nodevenv/king-auth/24/bin/activate
+          set -u
           if [ ! -s .runtime-secret ]; then
             umask 077
             node -e 'process.stdout.write(require("node:crypto").randomBytes(48).toString("base64url"))' > .runtime-secret
