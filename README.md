@@ -50,6 +50,8 @@ function MyRoutes(){
 
 Forms accept `className`, `style`, `submitLabel`, `onSuccess(data)`, and `onError(error)`. Account/Sessions accept `className`/`style`. SignOut accepts `onSuccess()`/`onError(error)`. Components use semantic HTML and accessible labels/announcements, no CSS or inline theme; style `.king-auth-form`, `.king-auth-fields`, `.king-auth-field`, `.king-auth-error`, `.king-auth-status` in your app. Inputs/buttons inherit your site's CSS. Caller-provided `style` is optional.
 
+Production signup requires approval by the owner, notified at jacobuid@gmail.com. Verification displays a pending-approval message; approval does not replace email verification. Signup includes a hidden honeypot field. SignIn automatically asks for an emailed code after two wrong passwords. The code expires after five minutes, has three guesses, and is consumed for one password attempt; resends have a one-minute cooldown. Five wrong passwords lock the account and notify the owner once, with confirmation links to unlock, delete or set a password. Missing/invalid codes do not count as password attempts. These policies are enforced by the central server across websites/IP addresses.
+
 `ChangePhone` and `ChangeUsername` remain optional exports for compatibility; absent from default account UI. SMS is currently unavailable. `SignInButton` and `SignUpButton` are legacy aliases for the complete forms, not redirect links. Version 0.2 changes the 0.1 redirect-oriented React API.
 
 ## Session policy
