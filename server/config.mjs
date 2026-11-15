@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 export function loadConfig(env = process.env) {
   const production = env.NODE_ENV === 'production';
-  const url = new URL(env.AUTH_BASE_URL || 'http://localhost:3000');
+  const url = new URL(env.AUTH_BASE_URL || (production ? 'https://kingauth.app' : 'http://localhost:3000'));
   if (production && url.protocol !== 'https:') throw new Error('Production requires HTTPS');
   const secretFile = resolve('.runtime-secret');
   const secret = env.BETTER_AUTH_SECRET || (existsSync(secretFile) ? readFileSync(secretFile, 'utf8').trim() : 'development-only-secret-change-before-production-1234');

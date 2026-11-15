@@ -63,7 +63,9 @@ One-time setup:
 5. If necessary, set repository Actions variables `SSH_HOST` and `SSH_PORT`. Defaults are `lv-shared01.dapanel.net` and `53667`.
 6. Run the workflow from GitHub Actions or push to `main`.
 
-The server must have Node.js 24 configured with root `king-auth`, startup `app.js`, URL `kingauth.app/`, NODE_ENV=production, AUTH_BASE_URL, DB_HOST, DB_NAME, DB_USER and DB_PASSWORD. Deployment creates a persistent mode-600 `.runtime-secret` if BETTER_AUTH_SECRET is absent. Back this up securely along with the database; changing it invalidates encrypted data/sessions. No credentials are bundled.
+The server must have Node.js 24 configured with root `king-auth`, startup `app.js`, URL `kingauth.app/`, NODE_ENV=production, AUTH_BASE_URL, DB_HOST, DB_NAME, DB_USER and DB_PASSWORD. Deployment creates a private `.env` with this installation's non-secret database/URL settings if it is absent; set the database password through DirectAdmin or edit that private file. Existing panel environment variables take precedence. Neither `.env` nor `.runtime-secret` is uploaded or overwritten on subsequent deployments.
+
+Deployment creates a persistent mode-600 `.runtime-secret` if BETTER_AUTH_SECRET is absent. Back this up securely along with the database; changing it invalidates encrypted data/sessions. No credentials are bundled.
 
 The auth engine checks its schema at startup and applies additive migrations, refusing unsafe ones. Back up the database before upgrades. Destructive migrations require a separate reviewed procedure. Deployments currently update files in place; this small shared-host setup does not provide zero-downtime releases or automatic rollback. Revert a code commit to deploy the previous code; do not revert database schemas blindly.
 

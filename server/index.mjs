@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { existsSync } from 'node:fs';
+import { loadEnvFile } from 'node:process';
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { createPool } from 'mysql2';
@@ -10,6 +12,10 @@ import { loadConfig } from './config.mjs';
 import { delivery } from './delivery.mjs';
 import { createAuth } from './auth.mjs';
 
+// File-based settings are useful on shared hosts; panel variables take precedence.
+const inheritedEnvironment = { ...process.env };
+if (existsSync('.env')) loadEnvFile('.env');
+Object.assign(process.env, inheritedEnvironment);
 const config = loadConfig();
 if (config.production && !config.database) throw new Error('Production requires a configured MySQL database');
 if (!config.database) await mkdir(dirname(resolve(config.sqlitePath)), { recursive: true });

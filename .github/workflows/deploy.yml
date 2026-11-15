@@ -56,6 +56,10 @@ jobs:
             umask 077
             node -e 'process.stdout.write(require("node:crypto").randomBytes(48).toString("base64url"))' > .runtime-secret
           fi
+          if [ ! -f .env ]; then
+            umask 077
+            printf '%s\n' 'AUTH_BASE_URL=https://kingauth.app' 'DB_HOST=localhost' 'DB_NAME=xdjzyshp_king-autk' 'DB_USER=xdjzyshp_king-autk' '# Set DB_PASSWORD in DirectAdmin or in this private file.' > .env
+          fi
           tar -xzf deploy.tar.gz
           npm ci --omit=dev --ignore-scripts
           touch tmp/restart.txt
