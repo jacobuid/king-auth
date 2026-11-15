@@ -1,12 +1,12 @@
 {
   "name": "@jacobuid/king-auth",
-  "version": "0.1.0",
-  "description": "React components and OIDC server helpers for the shared King Auth service",
+  "version": "0.2.0",
+  "description": "Embedded React authentication forms and same-origin backend adapter for King Auth",
   "type": "module",
-  "exports": { ".": {"types":"./server.d.mts","default":"./server.mjs"}, "./server": {"types":"./server.d.mts","default":"./server.mjs"}, "./react": {"types":"./react.d.mts","default":"./react.mjs"} },
-  "files": ["server.mjs", "react.mjs", "server.d.mts", "react.d.mts", "README.md"],
+  "exports": { ".": {"types":"./react.d.mts","default":"./react.mjs"}, "./server": {"types":"./server.d.mts","default":"./server.mjs"}, "./react": {"types":"./react.d.mts","default":"./react.mjs"} },
+  "files": ["server.mjs", "proxy.mjs", "react.mjs", "forms.mjs", "server.d.mts", "react.d.mts", "README.md"],
   "engines": { "node": ">=24" },
-  "dependencies": { "openid-client": "^6.9.0" },
+  "dependencies": { "openid-client": "^6.9.0", "jose": "^6.2.17" },
   "peerDependencies": { "react": ">=18" },
   "peerDependenciesMeta": { "react": { "optional": true } },
   "license": "UNLICENSED"

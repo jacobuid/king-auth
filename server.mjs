@@ -1,4 +1,5 @@
 import * as oidc from 'openid-client';
+export { createKingAuthProxy, createKingAuthProxy as createKingAuthServer } from './proxy.mjs';
 
 /** Configure once per consuming backend. Transactions belong in its server-side session. */
 export async function createKingAuth({ issuer = 'https://kingauth.app/api/auth', clientId, clientSecret, redirectUri, allowLocalhost = false }) {

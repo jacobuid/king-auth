@@ -1,44 +1,63 @@
-# King Auth integration
+# @jacobuid/king-auth
 
-This package connects your website to the shared user pool at kingauth.app. Credentials and account changes are handled on the central domain; components intentionally navigate there rather than collecting passwords on third-party sites.
+Unstyled React authentication forms backed by the shared King Auth user pool. Version 0.2.0 is prepared locally; it is not published to npm yet. Use `npm pack --workspace @jacobuid/king-auth` from the repository root, then install the tarball in your consuming app.
 
-The package is prepared locally but is not published to npm yet. From this repository, run `npm pack --workspace @jacobuid/king-auth` and install the resulting tarball in your app.
+## Backend
+
+```js
+import {createKingAuthServer} from '@jacobuid/king-auth/server';
+const auth=createKingAuthServer({
+  origin:'https://your-site.example',
+  secret:process.env.SESSION_SECRET, // unique random >=32 characters
+});
+app.use(auth.handler); // root mount, before your other handlers
+```
+
+Options: `origin` (exact site origin), `secret`, optional `issuer` (default `https://kingauth.app/api/auth`), `basePath` (default `/auth/api`), `allowLocalhost` (explicit development HTTP loopback only), and injectable `fetch`. Keep this module and secret on the backend. Rotating the secret invalidates this site's cookies. Use a different secret per site, shared across that site's instances.
+
+`await auth.getSession(req,res)` returns `{user,session}` or `null`, and renews the cookie when appropriate. The result omits central session tokens. `await auth.isSignedIn(req)` returns a boolean. Both verify against King Auth on each call; service/network errors throw and must deny access. Always authorize server operations with these checks. Set private responses to `Cache-Control: no-store`; `getSession(req,res)` does this automatically.
+
+The handler exposes an allowlist of `/auth/api/*` routes used by the forms, checks exact Origin and JSON for mutations, and uses an authenticated encrypted HttpOnly SameSite=Lax cookie (Secure and __Host-prefixed over HTTPS). Credentials go from your React forms to your backend and then King Auth over HTTPS. Never log request bodies or cookie headers. Your website is trusted with submitted credentials. No client ID/redirect registration or cross-origin browser-cookie access is required. A static-only React site needs a Node backend added first.
+
+## React
 
 ```jsx
-import { AuthProvider, SignInButton, AccountSettings, useAuth } from '@jacobuid/king-auth/react';
-
-function App() {
-  return <AuthProvider>
-    <SignInButton />
-    <AccountSettings />
-  </AuthProvider>;
+import {AuthProvider,SignIn,SignUp,Account,SignOut,useAuth} from '@jacobuid/king-auth';
+function MyApp(){return <AuthProvider><MyRoutes /></AuthProvider>;}
+function MyRoutes(){
+  const {user,isSignedIn,isLoading,error,refresh}=useAuth();
+  if(isLoading)return null;
+  return isSignedIn ? <><p>{user.email}</p><Account /><SignOut /></> : <SignIn />;
 }
 ```
 
-The consuming backend must implement `/auth/login`, `/auth/callback`, and `/auth/session`. For `SignUpButton`, also implement `/auth/signup` with `kingAuth.begin({ createAccount: true })`. Register its exact callback URL with King Auth first. React components do not authorize backend requests.
+`AuthProvider` accepts `basePath` matching your backend. `useAuth()` (alias `useSession()`) exposes `user`, `session`, `isSignedIn`, `isLoading`/`loading`, `error`, `refresh()`, and `signOut()`. It checks on mount and window focus. `call(route, body?)` is available for custom UI; omitting body makes a GET. `RequireAuth` accepts `children` and `fallback` for display only.
 
-```js
-import { createKingAuth } from '@jacobuid/king-auth/server';
-const kingAuth = await createKingAuth({
-  clientId: process.env.KING_AUTH_CLIENT_ID,
-  clientSecret: process.env.KING_AUTH_CLIENT_SECRET,
-  redirectUri: 'https://your-site.example/auth/callback',
-});
+| Component | Purpose |
+| --- | --- |
+| `SignIn` | Email/password, optional remembered session |
+| `SignUp` | Email/password/confirmation, then verification code; no phone or username |
+| `VerifyEmail` | Code entry and resend; optional `email` |
+| `SendCode` | Optional `email`, `purpose`: `email-verification` or `forget-password` |
+| `ForgotPassword` | Email reset request then reset form |
+| `ResetPassword` | Email, code, new/confirm password; optional `identifier` email |
+| `ChangeEmail` | Proof of current and new email; UUID remains unchanged |
+| `ChangePassword` | Current, new, confirm password; ends other sessions |
+| `SessionSettings` | Current-device session lifetime, maximum three years |
+| `Sessions` | List sessions, end one or all others; no bearer tokens exposed |
+| `Account` / `AccountSettings` | Email, UUID, email/password/session controls, sign-out; sign-in if anonymous |
+| `SignOut` | Unstyled button, optional children and normal button attributes |
 
-// GET /auth/login: store transaction in the user's server-side session,
-// save the session, then redirect to url.
-const { url, transaction } = await kingAuth.begin();
+Forms accept `className`, `style`, `submitLabel`, `onSuccess(data)`, and `onError(error)`. Account/Sessions accept `className`/`style`. SignOut accepts `onSuccess()`/`onError(error)`. Components use semantic HTML and accessible labels/announcements, no CSS or inline theme; style `.king-auth-form`, `.king-auth-fields`, `.king-auth-field`, `.king-auth-error`, `.king-auth-status` in your app. Inputs/buttons inherit your site's CSS. Caller-provided `style` is optional.
 
-// GET /auth/callback: load and DELETE transaction from that session before
-// exchanging the code. Pass the full absolute callback URL.
-const user = await kingAuth.complete(callbackURL, transaction);
-// Regenerate the local session ID, store user, save, and redirect home.
+`ChangePhone` and `ChangeUsername` remain optional exports for compatibility; absent from default account UI. SMS is currently unavailable. `SignInButton` and `SignUpButton` are legacy aliases for the complete forms, not redirect links. Version 0.2 changes the 0.1 redirect-oriented React API.
 
-// GET /auth/session: return { user } from the local session (or null).
-```
+## Session policy
 
-Use a production session store and Secure, HttpOnly, SameSite=Lax cookies. Consume each transaction once, expire it after ten minutes, and regenerate the session on sign-in. Use the permanent `user.id` for your application data. Each site controls its own membership and authorization. Do not return OAuth tokens or client secrets to React or put them in localStorage.
+Remembered sessions can last up to three years from creation. Account duration changes require a fresh sign-in (within ten minutes) and cannot exceed that deadline. Choices affect the current session; other sessions retain their own expiry. Browser-session mode has a one-day ceiling. Every backend check contacts King Auth, making revocation effective immediately on the next check. Password reset revokes all sessions; password change revokes other sessions.
 
-Other React exports: `SignIn`, `SignUpButton`, `SignUp`, `ChangeEmail`, `ChangePhone`, `ChangeUsername`, `ChangePassword`, `ForgotPassword`, `ResetPassword`. `useAuth()` returns `user`, `loading`, and `error`. Style links using normal `className`/`style` props. TypeScript declarations are included.
+Persistent browser cookies are renewed when checked and limited to 400 days per issuance. Browsers can clear them sooner, so three years without visiting is not guaranteed. Shortening duration updates the central session and the website cookie; extending duration requires a fresh session. Keep website backend clocks synchronized.
 
-Signing out of a consuming site should clear that site's session through a CSRF-protected POST. Signing out at King Auth does not automatically end sessions already established on other sites.
+## Optional OIDC helper
+
+`createKingAuth` from `/server` retains the separate Authorization Code + PKCE redirect integration. It requires registered client credentials and exact redirect URI, stores a short-lived transaction on your backend, and validates the callback before you create your own website session. This is separate from the embedded adapter and its live revocation checks. See its TypeScript declarations for `begin()`/`complete()`. There is no automatic back-channel logout for independently created OIDC website sessions.
