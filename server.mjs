@@ -12,12 +12,12 @@ export async function createKingAuth({ issuer = 'https://kingauth.app/api/auth',
     clientSecret ? oidc.ClientSecretBasic(clientSecret) : oidc.None(),
     allowLocalhost && local(provider) ? { execute: [oidc.allowInsecureRequests] } : undefined);
   return {
-    async begin() {
+    async begin({ createAccount = false } = {}) {
       const verifier = oidc.randomPKCECodeVerifier();
       const state = oidc.randomState();
       const nonce = oidc.randomNonce();
       const challenge = await oidc.calculatePKCECodeChallenge(verifier);
-      const url = oidc.buildAuthorizationUrl(configuration, { redirect_uri: callback.href, scope: 'openid profile email', code_challenge: challenge, code_challenge_method: 'S256', state, nonce });
+      const url = oidc.buildAuthorizationUrl(configuration, { redirect_uri: callback.href, scope: 'openid profile email', code_challenge: challenge, code_challenge_method: 'S256', state, nonce, ...(createAccount ? { prompt: 'create' } : {}) });
       return { url: url.href, transaction: { verifier, state, nonce, createdAt: Date.now() } };
     },
     async complete(callbackURL, transaction) {

@@ -15,7 +15,7 @@ function App() {
 }
 ```
 
-The consuming backend must implement `/auth/login`, `/auth/callback`, and `/auth/session`. Register its exact callback URL with King Auth first. React components do not authorize backend requests.
+The consuming backend must implement `/auth/login`, `/auth/callback`, and `/auth/session`. For `SignUpButton`, also implement `/auth/signup` with `kingAuth.begin({ createAccount: true })`. Register its exact callback URL with King Auth first. React components do not authorize backend requests.
 
 ```js
 import { createKingAuth } from '@jacobuid/king-auth/server';
@@ -39,6 +39,6 @@ const user = await kingAuth.complete(callbackURL, transaction);
 
 Use a production session store and Secure, HttpOnly, SameSite=Lax cookies. Consume each transaction once, expire it after ten minutes, and regenerate the session on sign-in. Use the permanent `user.id` for your application data. Each site controls its own membership and authorization. Do not return OAuth tokens or client secrets to React or put them in localStorage.
 
-Other React exports: `SignIn`, `ChangeEmail`, `ChangePhone`, `ChangeUsername`, `ChangePassword`, `ForgotPassword`, `ResetPassword`. `useAuth()` returns `user`, `loading`, and `error`. Style links using normal `className`/`style` props.
+Other React exports: `SignIn`, `SignUpButton`, `SignUp`, `ChangeEmail`, `ChangePhone`, `ChangeUsername`, `ChangePassword`, `ForgotPassword`, `ResetPassword`. `useAuth()` returns `user`, `loading`, and `error`. Style links using normal `className`/`style` props. TypeScript declarations are included.
 
 Signing out of a consuming site should clear that site's session through a CSRF-protected POST. Signing out at King Auth does not automatically end sessions already established on other sites.
