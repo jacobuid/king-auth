@@ -40,3 +40,14 @@ export function SessionSettings(props?: FormProps): ReactElement;
 export function Sessions(props?: Pick<FormProps, 'className' | 'style'>): ReactElement;
 export function SignOut(props?: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> & {onSuccess?(): void;onError?(error: Error): void}): ReactElement;
 export function RequireAuth(props: {children?: ReactNode;fallback?: ReactNode}): ReactElement | ReactNode;
+export interface ProfileMenuProps {
+  className?: string;
+  style?: CSSProperties;
+  triggerClassName?: string;
+  menuClassName?: string;
+  dialogClassName?: string;
+  accountClassName?: string;
+  avatar?: ReactNode;
+  triggerLabel?: string;
+}
+export function ProfileMenu(props?: ProfileMenuProps): ReactElement | null;

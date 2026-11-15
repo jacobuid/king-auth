@@ -22,12 +22,12 @@ The handler exposes an allowlist of `/auth/api/*` routes used by the forms, chec
 ## React
 
 ```jsx
-import {AuthProvider,SignIn,SignUp,Account,SignOut,useAuth} from '@jacobuid/king-auth';
+import {AuthProvider,SignIn,SignUp,Account,ProfileMenu,SignOut,useAuth} from '@jacobuid/king-auth';
 function MyApp(){return <AuthProvider><MyRoutes /></AuthProvider>;}
 function MyRoutes(){
   const {user,isSignedIn,isLoading,error,refresh}=useAuth();
   if(isLoading)return null;
-  return isSignedIn ? <><p>{user.email}</p><Account /><SignOut /></> : <SignIn />;
+  return isSignedIn ? <><ProfileMenu /><p>{user.email}</p></> : <SignIn />;
 }
 ```
 
@@ -47,8 +47,28 @@ function MyRoutes(){
 | `Sessions` | List sessions, end one or all others; no bearer tokens exposed |
 | `Account` / `AccountSettings` | Email, UUID, email/password/session controls, sign-out; sign-in if anonymous |
 | `SignOut` | Unstyled button, optional children and normal button attributes |
+| `ProfileMenu` | Profile button, identity dropdown, Manage account modal, and sign-out |
 
 Forms accept `className`, `style`, `submitLabel`, `onSuccess(data)`, and `onError(error)`. Account/Sessions accept `className`/`style`. SignOut accepts `onSuccess()`/`onError(error)`. Components use semantic HTML and accessible labels/announcements, no CSS or inline theme; style `.king-auth-form`, `.king-auth-fields`, `.king-auth-field`, `.king-auth-error`, `.king-auth-status` in your app. Inputs/buttons inherit your site's CSS. Caller-provided `style` is optional.
+
+## Profile dropdown and account popup
+
+```jsx
+<AuthProvider>
+  <ProfileMenu
+    className="profile"
+    triggerClassName="avatar-button"
+    menuClassName="profile-dropdown"
+    dialogClassName="account-modal"
+    accountClassName="account-content"
+    avatar={<MyAvatar />}
+  />
+</AuthProvider>
+```
+
+The default trigger shows initials from the user's name or email. Clicking it opens name/email plus **Manage account** and **Sign out**. Manage account opens the existing `Account` component inside a native `<dialog>` modal. It includes verified email changes, password changes, session duration and session revocation. The dropdown closes on outside click or Escape; arrow keys/Home/End navigate its actions. The modal contains keyboard focus and returns focus to the profile button when closed. It closes with Escape or **Close**. The component renders nothing for anonymous/loading sessions.
+
+All appearance belongs to the importing site. In addition to the class props above, hooks are `.king-auth-profile`, `.king-auth-profile-trigger`, `.king-auth-profile-dropdown`, `.king-auth-profile-identity`, `.king-auth-account-dialog`, and `.king-auth-account-close`. Style `.king-auth-account-dialog::backdrop` for the overlay. Native browser defaults apply until your CSS overrides them. There is no bundled styling, branding, or development footer. `triggerLabel` customizes the accessible button name (default **Open profile menu**); `avatar` accepts any React node. Popup contents are the same `Account` component you can also render directly.
 
 Production signup requires approval by the owner, notified at jacobuid@gmail.com. Verification displays a pending-approval message; approval does not replace email verification. Signup includes a hidden honeypot field. SignIn automatically asks for an emailed code after two wrong passwords. The code expires after five minutes, has three guesses, and is consumed for one password attempt; resends have a one-minute cooldown. Five wrong passwords lock the account and notify the owner once, with confirmation links to unlock, delete or set a password. Missing/invalid codes do not count as password attempts. These policies are enforced by the central server across websites/IP addresses.
 

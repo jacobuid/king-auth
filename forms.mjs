@@ -108,3 +108,49 @@ export function AccountSettings({className,style}={}){
   return h('section',{className,style},h('p',null,user.email),h('p',null,'Account ID: ',user.id),h(ChangeEmail),h(ChangePassword),h(SessionSettings),h(Sessions),h(SignOut));
 }
 export const Account=AccountSettings;
+
+/** Unstyled profile disclosure with keyboard menu navigation and a native modal. */
+export function ProfileMenu({className,style,triggerClassName,menuClassName,dialogClassName,accountClassName,avatar,triggerLabel='Open profile menu'}={}){
+  const {user,loading}=useAuth();const id=useId();
+  const [open,setOpen]=useState(false),[accountOpen,setAccountOpen]=useState(false);
+  const root=useRef(),trigger=useRef(),menu=useRef(),dialog=useRef(),firstItem=useRef(0);
+  useEffect(()=>{
+    if(!open)return;
+    const items=menu.current?.querySelectorAll('[role="menuitem"]:not(:disabled)');
+    items?.[firstItem.current===-1?items.length-1:0]?.focus();
+    const outside=event=>{if(!root.current?.contains(event.target))setOpen(false);};
+    document.addEventListener('pointerdown',outside);document.addEventListener('focusin',outside);
+    return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('focusin',outside);};
+  },[open]);
+  useEffect(()=>{
+    const element=dialog.current;
+    if(accountOpen&&user&&!element?.open)element?.showModal();
+    else if(!accountOpen&&element?.open)element.close();
+  },[accountOpen,user]);
+  useEffect(()=>{if(!user){setOpen(false);setAccountOpen(false);}},[user]);
+  if(loading||!user)return null;
+  const closeMenu=()=>{setOpen(false);trigger.current?.focus();};
+  const navigate=event=>{
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeMenu();return;}
+    if(event.key==='Tab'){setOpen(false);trigger.current?.focus();return;}
+    const items=[...menu.current.querySelectorAll('[role="menuitem"]:not(:disabled)')];
+    const current=items.indexOf(document.activeElement);let next;
+    if(event.key==='ArrowDown')next=(current+1)%items.length;
+    else if(event.key==='ArrowUp')next=(current-1+items.length)%items.length;
+    else if(event.key==='Home')next=0;
+    else if(event.key==='End')next=items.length-1;
+    if(next!==undefined){event.preventDefault();items[next]?.focus();}
+  };
+  const initials=(user.name||user.email||'?').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
+  return h('div',{ref:root,className:['king-auth-profile',className].filter(Boolean).join(' '),style},
+    h('button',{ref:trigger,id:id+'-trigger',type:'button',className:['king-auth-profile-trigger',triggerClassName].filter(Boolean).join(' '),'aria-label':triggerLabel,'aria-haspopup':'menu','aria-expanded':open,'aria-controls':open?id+'-menu':undefined,onClick:()=>{firstItem.current=0;setOpen(value=>!value);},onKeyDown:event=>{if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();firstItem.current=event.key==='ArrowUp'?-1:0;setOpen(true);}}},avatar??h('span',{'aria-hidden':true},initials)),
+    open?h('div',{className:['king-auth-profile-dropdown',menuClassName].filter(Boolean).join(' ')},
+      h('div',{className:'king-auth-profile-identity'},user.name?h('p',null,user.name):null,h('p',null,user.email)),
+      h('div',{ref:menu,id:id+'-menu',role:'menu','aria-labelledby':id+'-trigger',onKeyDown:navigate},
+        h('button',{type:'button',role:'menuitem',tabIndex:-1,onClick:()=>{setOpen(false);setAccountOpen(true);}},'Manage account'),
+        h(SignOut,{role:'menuitem',tabIndex:-1,onSuccess:()=>{setOpen(false);setAccountOpen(false);}}))):null,
+    h('dialog',{ref:dialog,className:['king-auth-account-dialog',dialogClassName].filter(Boolean).join(' '),'aria-labelledby':id+'-title',onCancel:event=>{event.preventDefault();setAccountOpen(false);},onClose:()=>{setAccountOpen(false);trigger.current?.focus();}},
+      h('h2',{id:id+'-title'},'Account'),
+      h('button',{type:'button',className:'king-auth-account-close',autoFocus:true,'aria-label':'Close account',onClick:()=>setAccountOpen(false)},'Close'),
+      accountOpen?h(Account,{className:accountClassName}):null));
+}
