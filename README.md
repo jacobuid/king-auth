@@ -1,74 +1,121 @@
 # King Auth
 
-Self-hosted shared identity service at `https://kingauth.app`. All registered websites use one user pool and permanent UUIDs. Website authorization and website sessions remain separate from the central account.
+Self-hosted authentication service and unstyled React library. All consuming websites share one account database at `https://kingauth.app`. Each user has a permanent UUID: store **`user.id`** in your application's data, never their changeable email address.
 
-The server uses Better Auth and its maintained OAuth provider plugin inside this application, not a hosted authentication service. Production uses MySQL/MariaDB; development and automated tests use Node's SQLite engine.
+Signup asks for email and password, followed by an emailed verification code. The account component supports verified email changes, current/new/confirm password, session duration, reviewing sessions, and signing out individual or other sessions. SMS is not configured; phone and username are absent from the default React signup and account components. Existing optional username/phone server APIs remain for compatibility.
 
-## Features
+`kingauth.app/` deliberately returns an empty 404. No public marketing page or implementation guide is hosted there. Required authentication routes remain available; `/developers` is restricted to explicitly configured, verified administrators. Read [the operating handoff](docs/OPERATIONS.md) before changing hosting or credentials.
 
-- Email/password and username/password login; verified phone/password login once a phone has been linked.
-- Email-verification codes, forgot-password and code-based reset, session revocation.
-- Account settings: username, password, email (proof of both addresses), and verified phone changes.
-- One permanent user ID across all changes and sites.
-- OIDC discovery, signed ID tokens, userinfo, Authorization Code + S256 PKCE, exact redirect URI registration, explicit consent.
-- Website registration restricted to explicitly configured, email-verified administrators. Dynamic registration is off.
-- Database-backed rate limits, secure HttpOnly session cookies in production, origin checks, five-minute codes with attempt limits, and recent-sign-in requirements for identity changes.
-- React links/components and an OIDC server helper in `packages/king-auth`.
+## How websites integrate
 
-Account registration and recovery are unavailable until real email delivery is configured. SMS verification is unavailable until a sender is configured. These are explicit configuration gates, not simulated deliveries. Signup requires an email; username-only and phone-only signup are not implemented.
+```text
+Your website's React components
+        | same-origin /auth/api/*
+Your website's Node backend adapter
+        | HTTPS, server to server
+kingauth.app/api/auth -> shared MariaDB user/session database
+```
 
-## Local development
+Forms stay inside the consuming website. The backend adapter keeps King Auth credentials in an encrypted, HttpOnly, same-site cookie. Tokens are never returned to React or stored in localStorage. Each website needs a Node backend or compatible Node server routes; a static-only React deployment cannot use this adapter by itself. Websites using embedded forms are trusted with the passwords users submit to them. Only integrate sites you trust; the existing OIDC helper is available separately for sites that should redirect to King Auth instead.
 
-Use Node.js 24 or later:
+The npm package is prepared as **`@jacobuid/king-auth`**, version 0.2.0, and **has not been published to npm**. Until publication, create and install its tarball:
 
 ```sh
 npm ci
-npm run build
-npm test
-npm start
+npm pack --workspace @jacobuid/king-auth
+# In your consuming project:
+npm install /path/to/jacobuid-king-auth-0.2.0.tgz
 ```
 
-Open `http://localhost:3000`. A local database is created in ignored `.local/`. Environment variables can be loaded with `node --env-file=.env app.js`. Copy `.env.example`, use `NODE_ENV=development` and `AUTH_BASE_URL=http://localhost:3000`, and omit DB_NAME to use SQLite locally. No OTPs or secrets are logged. Tests use an isolated in-memory delivery sink.
+Consuming backend (Express example):
 
-## Email and SMS
+```js
+import express from 'express';
+import { createKingAuthServer } from '@jacobuid/king-auth/server';
 
-Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, and MAIL_FROM in DirectAdmin. SMTP uses verified TLS (implicit on 465; STARTTLS otherwise). An alternative is SENDMAIL_PATH pointing to a mail executable provided by your host. The host has `/usr/sbin/sendmail`, but it is not automatically enabled: confirm sender/domain deliverability first. Set SPF/DKIM records as your mail provider instructs.
+const app = express();
+const auth = createKingAuthServer({
+  origin: 'https://your-site.example',
+  secret: process.env.SESSION_SECRET, // unique, random, >=32 characters
+});
+app.use(auth.handler); // mount at root; handles /auth/api/* only
 
-For SMS, configure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM. Another provider can be implemented in `server/delivery.mjs`. Real delivery incurs the provider's charges; no messages are sent by tests.
+app.get('/api/private', async (req, res, next) => {
+  try {
+    const session = await auth.getSession(req, res);
+    res.set('Cache-Control', 'no-store');
+    if (!session) return res.status(401).json({ message: 'Sign in first' });
+    // Check this site's permissions using session.user.id.
+    res.json({ userId: session.user.id });
+  } catch (error) { next(error); } // service failures must deny access
+});
+```
 
-## Administrator setup
+React:
 
-Create and verify your account after email is configured. Copy its permanent ID from `/account`. Add that ID to KING_AUTH_ADMIN_IDS in DirectAdmin, save and restart. There is no first-user-becomes-admin behavior and no public bootstrap endpoint. An administrator can register websites at `/developers` and receive client credentials. Keep client secrets on the consuming website's backend. Configure callback URLs exactly; the hosted UI requires HTTPS.
+```jsx
+import {
+  AuthProvider, SignIn, SignUp, ForgotPassword, Account,
+  SignOut, useAuth,
+} from '@jacobuid/king-auth';
 
-## Integrating websites
+function Status() {
+  const { user, isSignedIn, isLoading } = useAuth();
+  if (isLoading) return null;
+  return isSignedIn ? <p>Signed in as {user.email}</p> : <SignIn />;
+}
 
-See [the package documentation](packages/king-auth/README.md) and [the example backend](examples/website/server.mjs). The package is prepared but has not been published to npm. Package it with `npm pack --workspace @jacobuid/king-auth`, then install the tarball in another project.
+function App() {
+  return <AuthProvider>
+    <Status />
+    {/* Render these wherever your site's navigation calls for them. */}
+    <SignUp />
+    <ForgotPassword />
+    <Account className="my-account" />
+    <SignOut className="my-button">Sign out</SignOut>
+  </AuthProvider>;
+}
+```
 
-The issuer is `https://kingauth.app/api/auth`. Discovery is served both under the issuer and at `/.well-known/openid-configuration`. Register each site's exact callback URL, use PKCE/state/nonce, consume the transaction once, validate tokens on the backend, regenerate the local session, and store the resulting user ID in a secure website session. Never identify users by changeable email or username.
+Every component is unstyled: semantic HTML, accessible labels/status messages, and class names; no CSS import, inline theme, or design dependency. Pass `className`/`style` or target `.king-auth-form`, `.king-auth-fields`, `.king-auth-field`, `.king-auth-error`, and `.king-auth-status`. `style` is applied only when you supply it.
 
-Account-management React components navigate to the central account portal. They do not embed credential forms across origins. This keeps passwords on the identity provider's domain.
+See [all components and session APIs](packages/king-auth/README.md) and [the runnable example](examples/website). `useAuth()` controls presentation; **protect backend data with `getSession()`**. A frontend check alone is insufficient. Backend checks consult the central session database every time, so revocation takes effect on the next check. An unavailable identity service causes an error; do not treat that as authenticated.
 
-Ending or revoking a King Auth session does not automatically clear sessions a website already created. Local website logout and per-site access decisions remain the website's responsibility. Back-channel logout orchestration across consuming apps is not implemented.
+Shared accounts do not mean automatic cross-domain login: each site has its own cookie/session. Logging into a second site uses the same account UUID. That site's memberships and permissions remain its own responsibility.
 
-## Automatic deployment
+## Session lifetime
 
-Pushes to `main` run `.github/workflows/deploy.yml`: install locked dependencies, check syntax, run security integration tests, build the browser bundle, upload an archive over verified SSH, verify the existing production configuration and database connection before extracting application files, install runtime dependencies, restart Passenger, and verify `/health` over HTTPS. Hosting environment variables are preserved. The preflight requires the current installation's runtime dependencies; it is an update guard rather than an initial provisioning tool.
+Sign-in offers a remembered session of up to three years. The account component allows browser-session, one day, one week, 30 days, one year, or three years. Changes affect **the current session/device**, require a sign-in within the last ten minutes, and can never extend it beyond three years from its original creation. Signing in again creates a new session.
 
-One-time setup:
+Server expiry is authoritative and does not slide indefinitely. The backend adapter renews its encrypted browser cookie during session checks, without moving the absolute deadline. Browsers can remove cookies sooner; Chrome limits persistent cookies to [400 days](https://developer.chrome.com/blog/cookie-max-age-expires). Three years of inactivity is therefore not guaranteed. Browser-session mode has a one-day ceiling; browser session restoration may preserve session cookies after a restart.
 
-1. Confirm HostDive permits external SSH and obtain its port.
-2. Authorize a dedicated Ed25519 deployment public key in DirectAdmin's SSH Keys manager.
-3. Add the matching private key as the repository Actions secret `DEPLOY_SSH_KEY`.
-4. Add the server's SSH known-hosts entry as `SSH_KNOWN_HOSTS`, after verifying its fingerprint through the hosting terminal or provider.
-5. If necessary, set repository Actions variables `SSH_HOST` and `SSH_PORT`. Defaults are `lv-shared01.dapanel.net` and `53667`.
-6. Run the workflow from GitHub Actions or push to `main`.
+Password resets revoke existing sessions. Password changes sign out other sessions; account controls can end individual sessions or all other sessions across embedded integrations. User-interface state refreshes on focus or `refresh()`; protected backend requests always recheck. Existing standalone OIDC website sessions are separate and need their own logout policy.
 
-The server must have Node.js 24 configured with root `king-auth`, startup `app.js`, URL `kingauth.app/`, NODE_ENV=production, AUTH_BASE_URL, DB_HOST, DB_NAME, DB_USER and DB_PASSWORD. Deployment creates a private `.env` with this installation's non-secret database/URL settings if it is absent; set the database password through DirectAdmin or edit that private file. Existing panel environment variables take precedence. Neither `.env` nor `.runtime-secret` is uploaded or overwritten on subsequent deployments.
+## Develop and verify
 
-Deployment creates a persistent mode-600 `.runtime-secret` if BETTER_AUTH_SECRET is absent. Back this up securely along with the database; changing it invalidates encrypted data/sessions. No credentials are bundled.
+Use Node.js 24+:
 
-The auth engine checks its schema at startup and applies additive migrations, refusing unsafe ones. Back up the database before upgrades. Destructive migrations require a separate reviewed procedure. Deployments currently update files in place; this small shared-host setup does not provide zero-downtime releases or automatic rollback. Revert a code commit to deploy the previous code; do not revert database schemas blindly.
+```sh
+npm ci
+npm run check
+npm test
+npm run build
+```
 
-The server overwrites the internal rate-limit IP header from its socket peer address. If the hosting runtime supplies only a loopback address, rate limiting will conservatively share buckets across users; verify the runtime's client-address behavior before scaling. Do not trust browser-supplied forwarding headers.
+For local service development, copy `.env.example` to ignored `.env`, set `NODE_ENV=development`, `AUTH_BASE_URL=http://localhost:3000`, and omit `DB_NAME` to use SQLite under ignored `.local/`. Run `npm start`; navigate to `/sign-in`, not the intentionally blank root. Configure real SMTP to try registration manually; tests use an isolated message sink and send no real emails or texts.
 
-Keep dependencies updated, configure backups, monitor delivery errors and provision sufficient database/storage capacity before onboarding real users. `/health` means initialization and schema migration succeeded; it is not an email/SMS deliverability check.
+The [example](examples/website/server.mjs) runs a second website on port 4000. In `examples/website`, copy `.env.example` to `.env`, generate a fresh random `SESSION_SECRET`, run `npm install`, `npm run build`, then `npm start`. Set `KING_AUTH_ISSUER=http://localhost:3000/api/auth` for a local auth service. The default uses production King Auth. Local HTTP is explicitly allowed only for loopback development; production requires HTTPS. No OAuth client registration is needed for the embedded adapter.
+
+Tests cover identity changes, code replay, CSRF, session revocation, backend checks, encrypted cookie tampering, duration caps and recent sign-in, OIDC/PKCE, deployment preflight, and a MariaDB adapter test enabled in CI. No production database is used by automated tests.
+
+For the optional real-browser integration test, install Chrome and run `KING_AUTH_BROWSER=1 node --test test/browser.test.mjs` (PowerShell: `$env:KING_AUTH_BROWSER='1'` then the Node command). This exercises the unstyled combined React signup/account/sign-out flow against an isolated test database/message sink.
+
+## Operations
+
+Pushes to `main` deploy through [GitHub Actions](.github/workflows/deploy.yml): locked install, syntax checks, integration tests including ephemeral MariaDB, build, verified SSH upload, database preflight **before** application replacement, install, Passenger restart, HTTPS health check. Releases update files in place; no automatic rollback or zero-downtime guarantee. Startup applies additive migrations and refuses unsafe schema changes. Back up before upgrades.
+
+Production secrets live only on the server: `.env`, `.database-password`, `.smtp-password`, and `.runtime-secret`, all private. Existing process environment wins over `.env`; deployment preserves these files. Never print them, put them into issues, or commit them. Preserve `.runtime-secret` through redeployments and back it up with the database.
+
+HostDive SMTP is configured and authenticated; verification/password flows were tested through its local mailbox. External deliverability still needs SPF/DKIM verification at authoritative Namecheap DNS and an external inbox test. SMS is disabled. Backups and monitoring need an operating policy before real users are onboarded. `/health` verifies initialized service/schema, not email delivery.
+
+The backend uses Better Auth with its maintained OAuth provider plugin, self-hosted in this application. This is not a third-party hosted auth account. Embedded sites forward requests from their own backend, so rate limits currently aggregate users behind each backend IP. See the handoff before scaling or modifying proxy/IP trust.

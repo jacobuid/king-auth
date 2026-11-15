@@ -1,5 +1,7 @@
 import { betterAuth } from 'better-auth';
-import { createAuthMiddleware, APIError, getSessionFromCtx } from 'better-auth/api';
+import { createAuthMiddleware, createAuthEndpoint, freshSessionMiddleware, sessionMiddleware, APIError, getSessionFromCtx } from 'better-auth/api';
+import { setSessionCookie } from 'better-auth/cookies';
+import { z } from 'zod';
 import { emailOTP, phoneNumber, username, jwt } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
 
@@ -10,7 +12,15 @@ export function createAuth({ config, database, sender }) {
     trustedOrigins: [config.baseURL], disabledPaths: ['/token', '/change-email'],
     emailAndPassword: { enabled: true, minPasswordLength: 12, maxPasswordLength: 128, requireEmailVerification: true, revokeSessionsOnPasswordReset: true },
     emailVerification: { autoSignInAfterVerification: true },
-    session: { expiresIn: 604800, updateAge: 86400, freshAge: 600, storeSessionInDatabase: true },
+    // Remembered sessions have a fixed three-year ceiling, not an endless sliding expiry.
+    // HTTP cookies are limited to 400 days by the serializer/browser. The database
+    // is authoritative and may retain remembered sessions for up to three years.
+    session: { expiresIn: 400 * 86400, disableSessionRefresh: true, freshAge: 600, storeSessionInDatabase: true },
+    databaseHooks: {session:{create:{before:async session=>{
+      const created=new Date(session.createdAt).getTime();
+      const remembered=new Date(session.expiresAt).getTime()-created>2*86400000;
+      return {data:{...session,expiresAt:new Date(created+(remembered?3*365*86400000:86400000))}};
+    }}}},
     advanced: { useSecureCookies: config.production, database: { generateId: 'uuid' }, ipAddress: { ipAddressHeaders: ['x-king-auth-client-ip'] } },
     rateLimit: { enabled: true, storage: 'database', window: 60, max: 60, customRules: {
       '/sign-in/*': { window: 60, max: 5 }, '/sign-up/*': { window: 60, max: 3 },
@@ -32,6 +42,33 @@ export function createAuth({ config, database, sender }) {
       }
     }) },
     plugins: [
+      { id: 'king-account', endpoints: {
+        sessionDuration: createAuthEndpoint('/account/session-duration', {
+          method:'POST', use:[freshSessionMiddleware],
+          body:z.object({seconds:z.number().int().min(60).max(3*365*86400)}),
+        }, async ctx=>{
+          const {session,user}=ctx.context.session;
+          const expiresAt=new Date(Math.min(Date.now()+ctx.body.seconds*1000,new Date(session.createdAt).getTime()+3*365*86400000));
+          const updated=await ctx.context.internalAdapter.updateSession(session.token,{expiresAt,updatedAt:new Date()});
+          if(!updated)throw new APIError('UNAUTHORIZED',{message:'Sign in again.'});
+          await setSessionCookie(ctx,{session:updated,user},false,{maxAge:Math.max(0,Math.min(400*86400,Math.floor((expiresAt.getTime()-Date.now())/1000)))});
+          return ctx.json({expiresAt:expiresAt.toISOString()});
+        }),
+        accountSessions: createAuthEndpoint('/account/sessions',{method:'GET',use:[sessionMiddleware]},async ctx=>{
+          const current=ctx.context.session.session;
+          const sessions=await ctx.context.internalAdapter.listSessions(ctx.context.session.user.id,{onlyActiveSessions:true});
+          return ctx.json(sessions.map(item=>({id:item.id,createdAt:item.createdAt,expiresAt:item.expiresAt,userAgent:item.userAgent,current:item.id===current.id})));
+        }),
+        accountRevoke: createAuthEndpoint('/account/revoke-session',{
+          method:'POST',use:[freshSessionMiddleware],body:z.object({sessionId:z.string().min(1).max(128)}),
+        },async ctx=>{
+          const sessions=await ctx.context.internalAdapter.listSessions(ctx.context.session.user.id,{onlyActiveSessions:true});
+          const session=sessions.find(item=>item.id===ctx.body.sessionId);
+          if(!session)throw new APIError('NOT_FOUND',{message:'Session not found.'});
+          await ctx.context.internalAdapter.deleteSession(session.token);
+          return ctx.json({success:true});
+        }),
+      } },
       username({ minUsernameLength: 3, maxUsernameLength: 30, usernameValidator: value => /^[a-zA-Z][a-zA-Z0-9_]{2,29}$/.test(value) }),
       emailOTP({ sendVerificationOTP: data => sender.email(data), sendVerificationOnSignUp: true, overrideDefaultEmailVerification: true, disableSignUp: true, storeOTP: 'hashed', allowedAttempts: 3, expiresIn: 300, changeEmail: { enabled: true, verifyCurrentEmail: true } }),
       phoneNumber({ sendOTP: data => sender.sms(data), sendPasswordResetOTP: data => sender.sms(data), requireVerification: true, phoneNumberValidator: value => /^\+[1-9]\d{7,14}$/.test(value), expiresIn: 300, allowedAttempts: 3 }),

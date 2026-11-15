@@ -40,6 +40,8 @@ http.createServer(async (req, res) => {
   if (config.production) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
   try {
     const url = new URL(req.url, config.baseURL);
+    // This domain is an identity service, not a public website or documentation site.
+    if (url.pathname === '/') { res.writeHead(404); return res.end(); }
     if (url.pathname === '/health') return json(res, 200, { status: 'ok', app: 'king-auth' });
     if (url.pathname === '/api/config') return json(res, 200, { emailEnabled: sender.emailEnabled, smsEnabled: sender.smsEnabled });
     if (url.pathname === '/.well-known/openid-configuration' || url.pathname === '/.well-known/oauth-authorization-server/api/auth') {
@@ -65,7 +67,11 @@ http.createServer(async (req, res) => {
       if (!assets.has(name)) return json(res, 404, { message: 'Not found' });
       res.writeHead(200, { 'Content-Type': name.endsWith('.css') ? 'text/css' : 'text/javascript' }); return res.end(assets.get(name));
     }
-    if (req.method === 'GET' && ['/', '/sign-in', '/sign-up', '/verify-email', '/forgot-password', '/reset-password', '/account', '/consent', '/developers'].includes(url.pathname)) {
+    if (url.pathname === '/developers') {
+      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+      if (!session?.user.emailVerified || !config.adminIds.includes(session.user.id)) return json(res, 404, { message: 'Not found' });
+    }
+    if (req.method === 'GET' && ['/sign-in', '/sign-up', '/verify-email', '/forgot-password', '/reset-password', '/account', '/consent', '/developers'].includes(url.pathname)) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(shell);
     }
     json(res, 404, { message: 'Not found' });

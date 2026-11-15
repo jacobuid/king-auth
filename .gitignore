@@ -10,5 +10,6 @@ node_modules/
 .database-password*
 .smtp-password*
 public/app.js
+examples/website/dist/
 deploy.tar.gz
 *.tgz
