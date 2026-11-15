@@ -17,6 +17,7 @@ app.disable('x-powered-by');
 app.use(session({ secret: process.env.SESSION_SECRET, resave: false, saveUninitialized: false, cookie: { httpOnly: true, secure: origin.startsWith('https:'), sameSite: 'lax', maxAge: 3600000 } }));
 const save = req => new Promise((resolve,reject) => req.session.save(error=>error?reject(error):resolve()));
 app.get('/auth/login', async(req,res,next)=>{try { const {url,transaction}=await king.begin();req.session.transaction=transaction;await save(req);res.redirect(url); }catch(error){next(error);} });
+app.get('/auth/signup', async(req,res,next)=>{try { const {url,transaction}=await king.begin({createAccount:true});req.session.transaction=transaction;await save(req);res.redirect(url); }catch(error){next(error);} });
 app.get('/auth/callback',async(req,res,next)=>{try{
   const transaction=req.session.transaction;delete req.session.transaction;await save(req);
   const user=await king.complete(new URL(req.originalUrl,origin),transaction);

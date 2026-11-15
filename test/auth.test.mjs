@@ -98,6 +98,7 @@ test('OIDC authorization code + S256 PKCE, exact callbacks, consent, and token v
     const keys=await f.request('/jwks');assert.equal(keys.status,200);
     const {payload}=await jwtVerify(tokens.data.id_token,createLocalJWKSet(keys.data),{issuer:f.config.baseURL+'/api/auth',audience:client.client_id});
     assert.equal(payload.sub,user.id);assert.equal(payload.nonce,'nonce-123');assert.equal(payload.email_verified,true);
+    await assert.rejects(()=>jwtVerify(tokens.data.id_token,createLocalJWKSet(keys.data),{issuer:f.config.baseURL+'/api/auth',audience:'another-website'}));
     const info=await f.request('/oauth2/userinfo',undefined,{noCookie:true,headers:{Authorization:`Bearer ${tokens.data.access_token}`}});assert.equal(info.status,200);assert.equal(info.data.sub,user.id);
     assert.notEqual((await f.request('/oauth2/token',tokenRequest,{form:true,noCookie:true})).status,200);
   }finally{f.database.close();}
@@ -141,6 +142,7 @@ test('installable server helper validates an actual OIDC callback',async()=>{
     const authorized=await f.request('/oauth2/authorize?'+new URL(url).searchParams);
     const consentURL=new URL(authorized.headers.get('location'),baseURL);
     const consent=await f.request('/oauth2/consent',{accept:true,oauth_query:consentURL.searchParams.toString()});assert.equal(consent.status,200,JSON.stringify(consent.data));
+    await assert.rejects(()=>client.complete(consent.data.url,{...transaction,state:'attacker'}));
     const identity=await client.complete(consent.data.url,transaction);assert.equal(identity.id,user.id);assert.equal(identity.email,user.email);
     await assert.rejects(()=>client.complete(consent.data.url,transaction));
     await assert.rejects(()=>client.complete(consent.data.url,{...transaction,state:'attacker'}));
