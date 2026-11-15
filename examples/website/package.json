@@ -1,0 +1,7 @@
+{
+  "name": "king-auth-example-website",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node --env-file=.env server.mjs" },
+  "dependencies": { "@jacobuid/king-auth": "file:../../packages/king-auth", "express": "^5.1.0", "express-session": "^1.18.2" }
+}

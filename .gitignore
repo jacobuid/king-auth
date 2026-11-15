@@ -5,3 +5,7 @@ node_modules/
 *.pem
 *.key
 .deploy/
+.local/
+.runtime-secret
+public/app.js
+deploy.tar.gz

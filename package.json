@@ -2,10 +2,29 @@
   "name": "king-auth",
   "version": "0.0.1",
   "private": true,
-  "description": "King Auth deployment smoke test",
-  "engines": { "node": ">=24" },
+  "description": "Self-hosted shared identity service and OIDC provider",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "start": "node app.js",
-    "check": "node --check app.js"
+    "check": "node --check app.js && node --check server/index.mjs && node --check server/auth.mjs && node --check client/portal.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@better-auth/oauth-provider": "^1.7.25",
+    "better-auth": "^1.7.25",
+    "mysql2": "^3.24.6",
+    "nodemailer": "^10.5.0",
+    "openid-client": "^6.9.0",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "esbuild": "^0.28.2"
   }
 }

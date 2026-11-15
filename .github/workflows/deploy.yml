@@ -1,4 +1,4 @@
-name: Deploy Hello World
+name: Deploy King Auth
 
 on:
   push:
@@ -15,17 +15,22 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
     env:
       SSH_HOST: ${{ vars.SSH_HOST || 'lv-shared01.dapanel.net' }}
       SSH_PORT: ${{ vars.SSH_PORT || '53667' }}
       SSH_USER: xdjzyshp
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
+      - run: npm ci
       - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - name: Package application
+        run: tar -czf deploy.tar.gz app.js package.json package-lock.json server public packages
       - name: Configure SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -41,12 +46,23 @@ jobs:
       - name: Upload and restart
         run: |
           ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'mkdir -p /home/xdjzyshp/king-auth/tmp'
-          scp -P "$SSH_PORT" -o BatchMode=yes app.js package.json "$SSH_USER@$SSH_HOST:/home/xdjzyshp/king-auth/"
-          ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'touch /home/xdjzyshp/king-auth/tmp/restart.txt'
+          scp -P "$SSH_PORT" -o BatchMode=yes deploy.tar.gz "$SSH_USER@$SSH_HOST:/home/xdjzyshp/king-auth/deploy.tar.gz"
+          ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'bash -s' <<'DEPLOY'
+          set -euo pipefail
+          cd /home/xdjzyshp/king-auth
+          source /home/xdjzyshp/nodevenv/king-auth/24/bin/activate
+          if [ ! -s .runtime-secret ]; then
+            umask 077
+            node -e 'process.stdout.write(require("node:crypto").randomBytes(48).toString("base64url"))' > .runtime-secret
+          fi
+          tar -xzf deploy.tar.gz
+          npm ci --omit=dev --ignore-scripts
+          touch tmp/restart.txt
+          DEPLOY
       - name: Verify public response
         run: |
           for attempt in $(seq 1 12); do
-            if curl --fail --silent --show-error --max-time 10 https://kingauth.app/ | grep -Fx 'Hello World! King Auth is running.'; then
+            if curl --fail --silent --show-error --max-time 20 https://kingauth.app/health | grep -F '"status":"ok"'; then
               exit 0
             fi
             sleep 5

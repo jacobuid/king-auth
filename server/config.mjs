@@ -1,0 +1,19 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+export function loadConfig(env = process.env) {
+  const production = env.NODE_ENV === 'production';
+  const url = new URL(env.AUTH_BASE_URL || 'http://localhost:3000');
+  if (production && url.protocol !== 'https:') throw new Error('Production requires HTTPS');
+  const secretFile = resolve('.runtime-secret');
+  const secret = env.BETTER_AUTH_SECRET || (existsSync(secretFile) ? readFileSync(secretFile, 'utf8').trim() : 'development-only-secret-change-before-production-1234');
+  if (production && (secret.startsWith('development-') || secret.length < 32)) throw new Error('Set a strong BETTER_AUTH_SECRET');
+  return {
+    production, baseURL: url.origin, secret,
+    database: env.DB_NAME ? { host: env.DB_HOST || 'localhost', port: Number(env.DB_PORT || 3306), database: env.DB_NAME, user: env.DB_USER, password: env.DB_PASSWORD, connectionLimit: 3 } : null,
+    sqlitePath: env.SQLITE_PATH || '.local/king-auth.sqlite',
+    adminIds: (env.KING_AUTH_ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
+    mail: { host: env.SMTP_HOST, port: Number(env.SMTP_PORT || 587), user: env.SMTP_USER, pass: env.SMTP_PASSWORD, from: env.MAIL_FROM || 'King Auth <noreply@kingauth.app>', sendmail: env.SENDMAIL_PATH },
+    sms: { sid: env.TWILIO_ACCOUNT_SID, token: env.TWILIO_AUTH_TOKEN, from: env.TWILIO_FROM },
+  };
+}
