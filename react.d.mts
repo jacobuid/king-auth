@@ -1,6 +1,10 @@
 import type { ReactNode, ReactElement, CSSProperties, ButtonHTMLAttributes } from 'react';
-import type { EmbeddedSession } from './server.mjs';
-export interface AuthProviderProps { children?: ReactNode; basePath?: string }
+export interface BrowserSession {
+  user: {id: string;name?: string;email?: string;emailVerified: boolean};
+  session: {id: string;createdAt: string;expiresAt: string};
+}
+type EmbeddedSession=BrowserSession;
+export interface AuthProviderProps { children?: ReactNode; mode?: 'browser'|'proxy'; apiUrl?: string; basePath?: string }
 export interface AuthState {
   user: EmbeddedSession['user'] | null;
   session: EmbeddedSession['session'] | null;
@@ -11,6 +15,7 @@ export interface AuthState {
   refresh(): Promise<EmbeddedSession | null>;
   call(route: string, body?: Record<string, unknown>): Promise<unknown>;
   signOut(): Promise<unknown>;
+  getToken(): string | null;
 }
 export interface FormProps {
   className?: string;
@@ -51,3 +56,10 @@ export interface ProfileMenuProps {
   triggerLabel?: string;
 }
 export function ProfileMenu(props?: ProfileMenuProps): ReactElement | null;
+export function createBrowserClient(options?: {apiUrl?: string;fetch?: typeof globalThis.fetch}): {
+  request(route: string,body?: Record<string,unknown>): Promise<any>;
+  getToken(): string | null;
+  getSession(): Promise<EmbeddedSession | null>;
+  isSignedIn(): Promise<boolean>;
+  signOut(): Promise<unknown>;
+};

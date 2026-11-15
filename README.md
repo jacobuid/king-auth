@@ -6,9 +6,11 @@ Unstyled React authentication forms backed by the shared King Auth user pool. In
 npm install github:jacobuid/king-auth#sdk
 ```
 
-Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.2.0); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
+Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.3.0); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
 
-## Backend
+## Optional backend adapter
+
+Browser mode is the default and needs no adapter, DNS setup, client secret or registered URL. The following adapter is optional: use `<AuthProvider mode="proxy">` with it if you prefer HttpOnly cookies and keep credentials out of page JavaScript.
 
 ```js
 import {createKingAuthServer} from '@jacobuid/king-auth/server';
@@ -23,7 +25,7 @@ Options: `origin` (exact site origin), `secret`, optional `issuer` (default `htt
 
 `await auth.getSession(req,res)` returns `{user,session}` or `null`, and renews the cookie when appropriate. The result omits central session tokens. `await auth.isSignedIn(req)` returns a boolean. Both verify against King Auth on each call; service/network errors throw and must deny access. Always authorize server operations with these checks. Set private responses to `Cache-Control: no-store`; `getSession(req,res)` does this automatically.
 
-The handler exposes an allowlist of `/auth/api/*` routes used by the forms, checks exact Origin and JSON for mutations, and uses an authenticated encrypted HttpOnly SameSite=Lax cookie (Secure and __Host-prefixed over HTTPS). Credentials go from your React forms to your backend and then King Auth over HTTPS. Never log request bodies or cookie headers. Your website is trusted with submitted credentials. No client ID/redirect registration or cross-origin browser-cookie access is required. A static-only React site needs a Node backend added first.
+The optional handler exposes an allowlist of `/auth/api/*` routes used by the forms, checks exact Origin and JSON for mutations, and uses an authenticated encrypted HttpOnly SameSite=Lax cookie (Secure and __Host-prefixed over HTTPS). Never log request bodies or cookie headers. This mode requires your backend; default browser mode supports static hosting.
 
 ## React
 
@@ -37,7 +39,15 @@ function MyRoutes(){
 }
 ```
 
-`AuthProvider` accepts `basePath` matching your backend. `useAuth()` (alias `useSession()`) exposes `user`, `session`, `isSignedIn`, `isLoading`/`loading`, `error`, `refresh()`, and `signOut()`. It checks on mount and window focus. `call(route, body?)` is available for custom UI; omitting body makes a GET. `RequireAuth` accepts `children` and `fallback` for display only.
+`AuthProvider` defaults to `mode="browser"`, calling `https://kingauth.app/api/browser` directly. Override `apiUrl` for a local auth service. Any HTTPS origin or explicit HTTP loopback development origin is accepted, without per-site registration. Requests omit cookies and use signed bearer credentials, so third-party-cookie support is unnecessary. The public gateway excludes owner/admin/OAuth operations and binds sessions to the originating site. One shared account UUID, independent sign-in on each site, no automatic SSO.
+
+`useAuth()` (alias `useSession()`) exposes `user`, `session`, `isSignedIn`, `isLoading`/`loading`, `error`, `refresh()`, `signOut()`, and `getToken()`. It checks on mount, focus and browser storage changes. `call(route, body?)` is available for custom UI; omitting body makes a GET. `RequireAuth` accepts `children` and `fallback` for display only. In proxy mode, `basePath` matches your adapter and `getToken()` returns null.
+
+Browser credentials live in sessionStorage by default or localStorage when remembered; **page JavaScript can access them**. Only enter credentials on trusted sites, protect against XSS, and never put bearer tokens into URLs/logs. Clearing/evicting storage can end persistence sooner. Credentials are opaque, not client-decodable JWT identity claims. Use `getSession()`/`isSignedIn()` to check centrally; decoding stored state alone is not authentication.
+
+Without React, `createBrowserClient()` exposes `request(route,body?)`, `getSession()`, `isSignedIn()`, `signOut()` and `getToken()` with the same storage/transport. It accepts optional `apiUrl` and injectable `fetch`.
+
+For private API data, send `Authorization: Bearer ${getToken()}` from your UI to your own trusted API. That API can use `createKingAuthVerifier({origin:'https://your-site.example'})` from `/server`, then `await verifier.getSession(req)` or `await verifier.isSignedIn(req)`. No adapter or secret is needed, but each backend request must verify authentication and apply its own permissions. Verification consults King Auth, returns null for invalid/revoked/wrong-origin sessions, and throws on service errors; deny access on errors. Browser-only login does not protect static files already delivered to users.
 
 | Component | Purpose |
 | --- | --- |
@@ -84,7 +94,9 @@ Production signup requires approval by the owner, notified at jacobuid@gmail.com
 
 Remembered sessions can last up to three years from creation. Account duration changes require a fresh sign-in (within ten minutes) and cannot exceed that deadline. Choices affect the current session; other sessions retain their own expiry. Browser-session mode has a one-day ceiling. Every backend check contacts King Auth, making revocation effective immediately on the next check. Password reset revokes all sessions; password change revokes other sessions.
 
-Persistent browser cookies are renewed when checked and limited to 400 days per issuance. Browsers can clear them sooner, so three years without visiting is not guaranteed. Shortening duration updates the central session and the website cookie; extending duration requires a fresh session. Keep website backend clocks synchronized.
+Browser mode persists opaque credentials in localStorage when remembered, with an authoritative server deadline capped at three years. The SDK checks server validity on refresh; the deadline does not slide. Unremembered sessions use sessionStorage with a one-day maximum. Shortening/changing duration updates central expiry and storage selection. Optional proxy-mode cookies are renewed when checked and limited to 400 days per issuance. Browsers may clear storage/cookies sooner, so three years of inactivity is not guaranteed.
+
+Version 0.3 changes AuthProvider's default to browser mode. Existing 0.2 backend-adapter consumers should add `mode="proxy"`; direct browser consumers can use `<AuthProvider>` without props.
 
 ## Optional OIDC helper
 

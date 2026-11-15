@@ -1,21 +1,25 @@
-import React, { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
+import {createBrowserClient} from './browser.mjs';
 
 const h = React.createElement;
 const Context = createContext(null);
-export function AuthProvider({ children, basePath='/auth/api' }) {
+export function AuthProvider({ children, mode='browser',apiUrl='https://kingauth.app/api/browser',basePath='/auth/api' }) {
+  if(!['browser','proxy'].includes(mode))throw Error('Choose browser or proxy auth mode');
   if(!basePath.startsWith('/')||basePath.startsWith('//')||basePath.includes('?')||basePath.includes('#'))throw Error('Use a same-origin auth basePath');
+  const browser=useMemo(()=>mode==='browser'?createBrowserClient({apiUrl}):null,[mode,apiUrl]);
   const [state,setState]=useState({user:null,session:null,isSignedIn:false,loading:true,error:null});
   const request=useCallback(async(route,body)=>{
+    if(browser)return browser.request(route,body);
     const response=await fetch(basePath.replace(/\/$/,'')+'/'+route,{method:body===undefined?'GET':'POST',credentials:'same-origin',headers:body===undefined?undefined:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
     const data=await response.json();
     if(!response.ok){const error=new Error(data?.message||'Authentication request failed');error.code=data?.code;error.status=response.status;throw error;}
     return data;
-  },[basePath]);
+  },[basePath,browser]);
   const refresh=useCallback(async()=>{try{const data=await request('get-session');setState({user:data?.user||null,session:data?.session||null,isSignedIn:!!data?.user,loading:false,error:null});return data;}catch(error){setState({user:null,session:null,isSignedIn:false,loading:false,error});throw error;}},[request]);
-  useEffect(()=>{let active=true;const check=()=>{if(active)refresh().catch(()=>{});};check();window.addEventListener('focus',check);return()=>{active=false;window.removeEventListener('focus',check);};},[refresh]);
+  useEffect(()=>{let active=true;const check=()=>{if(active)refresh().catch(()=>{});};check();window.addEventListener('focus',check);window.addEventListener('storage',check);return()=>{active=false;window.removeEventListener('focus',check);window.removeEventListener('storage',check);};},[refresh]);
   const call=useCallback(async(route,body)=>{const data=await request(route,body);if(body!==undefined)await refresh();return data;},[request,refresh]);
   const signOut=useCallback(()=>call('sign-out',{}),[call]);
-  return h(Context.Provider,{value:{...state,isLoading:state.loading,refresh,call,signOut}},children);
+  return h(Context.Provider,{value:{...state,isLoading:state.loading,refresh,call,signOut,getToken:()=>browser?.getToken()||null}},children);
 }
 export function useAuth(){const value=useContext(Context);if(!value)throw Error('Wrap King Auth components in AuthProvider');return value;}
 export function useSession(){return useAuth();}
