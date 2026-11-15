@@ -32,6 +32,8 @@ This document records the deployed setup and intended architecture as of 2026-11
 
 The package is prepared at version 0.2.0 but is not published on npm. Do not claim `npm install @jacobuid/king-auth` works from the registry until publication is confirmed. Use a packed tarball for now. The 0.2 React API replaces 0.1 redirect links with embedded forms. The OIDC helper remains separately available.
 
+`ProfileMenu` wraps the existing Account UI in a native modal, reached through a profile dropdown with identity and sign-out. It has no bundled CSS/branding. Preserve keyboard navigation, outside dismissal, Escape, native modal focus containment and focus restoration when editing it. The consuming website supplies its avatar and styles, including `::backdrop`; no new server endpoints are needed.
+
 ## Hosting and SSH
 
 HostDive shared hosting; DirectAdmin/CloudLinux Passenger. Server `lv-shared01.dapanel.net`, IP `162.244.93.2`, SSH port `53667`, user `xdjzyshp`.

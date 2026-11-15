@@ -60,7 +60,7 @@ React:
 ```jsx
 import {
   AuthProvider, SignIn, SignUp, ForgotPassword, Account,
-  SignOut, useAuth,
+  SignOut, ProfileMenu, useAuth,
 } from '@jacobuid/king-auth';
 
 function Status() {
@@ -71,6 +71,7 @@ function Status() {
 
 function App() {
   return <AuthProvider>
+    <ProfileMenu />
     <Status />
     {/* Render these wherever your site's navigation calls for them. */}
     <SignUp />
@@ -82,6 +83,8 @@ function App() {
 ```
 
 Every component is unstyled: semantic HTML, accessible labels/status messages, and class names; no CSS import, inline theme, or design dependency. Pass `className`/`style` or target `.king-auth-form`, `.king-auth-fields`, `.king-auth-field`, `.king-auth-error`, and `.king-auth-status`. `style` is applied only when you supply it.
+
+`ProfileMenu` provides a profile/initials button that opens a dropdown showing the user's name/email, **Manage account**, and **Sign out**. Manage account opens the existing `Account` component in a native modal dialog, including email/password changes and session controls. It supports keyboard menu navigation, outside-click dismissal, Escape, modal focus containment, and focus restoration. It renders nothing while signed out. Supply an `avatar` React node for your own icon/photo and use `triggerClassName`, `menuClassName`, `dialogClassName`, and `accountClassName` to style the parts. Style `.king-auth-account-dialog::backdrop` for your site's modal overlay. No branding, footer, or theme is added.
 
 See [all components and session APIs](packages/king-auth/README.md) and [the runnable example](examples/website). `useAuth()` controls presentation; **protect backend data with `getSession()`**. A frontend check alone is insufficient. Backend checks consult the central session database every time, so revocation takes effect on the next check. An unavailable identity service causes an error; do not treat that as authenticated.
 
