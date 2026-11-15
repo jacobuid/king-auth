@@ -22,14 +22,13 @@ kingauth.app/api/auth -> shared MariaDB user/session database
 
 Forms stay inside the consuming website. The backend adapter keeps King Auth credentials in an encrypted, HttpOnly, same-site cookie. Tokens are never returned to React or stored in localStorage. Each website needs a Node backend or compatible Node server routes; a static-only React deployment cannot use this adapter by itself. Websites using embedded forms are trusted with the passwords users submit to them. Only integrate sites you trust; the existing OIDC helper is available separately for sites that should redirect to King Auth instead.
 
-The npm package is prepared as **`@jacobuid/king-auth`**, version 0.2.0, and **has not been published to npm**. Until publication, create and install its tarball:
+Install the library directly from GitHub; no npm publication or manual tarball is needed:
 
 ```sh
-npm ci
-npm pack --workspace @jacobuid/king-auth
-# In your consuming project:
-npm install /path/to/jacobuid-king-auth-0.2.0.tgz
+npm install github:jacobuid/king-auth#sdk
 ```
+
+Imports use **`@jacobuid/king-auth`** as shown below. The automatically maintained `sdk` branch contains only the library, version 0.2.0; `main` contains the service and workspace, so use `#sdk` when installing. Commit your consuming project's `package-lock.json` to pin the exact Git commit. To update later, run the same install command again and commit the updated lockfile. For an explicitly fixed release, replace `sdk` with a full commit SHA from the **sdk branch**. Git must be available on the installing machine. The package is not published to the npm registry.
 
 Consuming backend (Express example):
 
