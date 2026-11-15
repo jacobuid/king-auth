@@ -1,4 +1,5 @@
 import http from 'node:http';
+import {Readable} from 'node:stream';
 import { existsSync } from 'node:fs';
 import { loadEnvFile } from 'node:process';
 import { mkdir, readFile } from 'node:fs/promises';
@@ -11,6 +12,7 @@ import { oauthProviderOpenIdConfigMetadata, oauthProviderAuthServerMetadata, ver
 import { loadConfig } from './config.mjs';
 import { delivery } from './delivery.mjs';
 import { createAuth } from './auth.mjs';
+import {createBrowserAPI} from './browser-api.mjs';
 
 // File-based settings are useful on shared hosts; panel variables take precedence.
 const inheritedEnvironment = { ...process.env };
@@ -25,6 +27,7 @@ export const auth = createAuth({ config, database, sender });
 const migrations = await getMigrations(auth.options);
 await migrations.runMigrations();
 const handler = toNodeHandler(auth);
+const browserAPI=createBrowserAPI({auth,config});
 const shell = await readFile(new URL('../public/index.html', import.meta.url));
 const assets = new Map(await Promise.all(['app.css', 'app.js'].map(async name => [name, await readFile(new URL(`../public/${name}`, import.meta.url))])));
 function json(res, code, body) { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); }
@@ -32,6 +35,7 @@ function json(res, code, body) { res.writeHead(code, { 'Content-Type': 'applicat
 http.createServer(async (req, res) => {
   // Never trust an IP header supplied by a browser. Passenger supplies the peer address.
   req.headers['x-king-auth-client-ip'] = req.socket.remoteAddress || '127.0.0.1';
+  delete req.headers['x-king-auth-browser-origin'];
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -40,6 +44,10 @@ http.createServer(async (req, res) => {
   if (config.production) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
   try {
     const url = new URL(req.url, config.baseURL);
+    if(url.pathname.startsWith('/api/browser/')){
+      const response=await browserAPI(new Request(url,{method:req.method,headers:fromNodeHeaders(req.headers),...(['GET','HEAD'].includes(req.method)?{}:{body:Readable.toWeb(req),duplex:'half'})}));
+      res.writeHead(response.status,Object.fromEntries(response.headers));return res.end(await response.text());
+    }
     // This domain is an identity service, not a public website or documentation site.
     if (url.pathname === '/') { res.writeHead(404); return res.end(); }
     if (url.pathname === '/health') return json(res, 200, { status: 'ok', app: 'king-auth' });

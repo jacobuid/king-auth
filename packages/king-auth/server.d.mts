@@ -25,3 +25,7 @@ export function createKingAuthProxy(options: EmbeddedOptions): {
   isSignedIn(req: IncomingMessage): Promise<boolean>;
 };
 export const createKingAuthServer: typeof createKingAuthProxy;
+export function createKingAuthVerifier(options: {origin: string;apiUrl?: string;allowLocalhost?: boolean;fetch?: typeof globalThis.fetch}): {
+  getSession(request: IncomingMessage | Request): Promise<EmbeddedSession|null>;
+  isSignedIn(request: IncomingMessage | Request): Promise<boolean>;
+};

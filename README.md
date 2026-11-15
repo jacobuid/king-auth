@@ -13,14 +13,14 @@ After two incorrect passwords, another attempt requires a single-use code sent t
 ## How websites integrate
 
 ```text
-Your website's React components
-        | same-origin /auth/api/*
-Your website's Node backend adapter
-        | HTTPS, server to server
-kingauth.app/api/auth -> shared MariaDB user/session database
+Your website's React components (static hosting is supported)
+        | HTTPS + site-bound bearer credential; cookies omitted
+kingauth.app/api/browser -> shared MariaDB user/session database
 ```
 
-Forms stay inside the consuming website. The backend adapter keeps King Auth credentials in an encrypted, HttpOnly, same-site cookie. Tokens are never returned to React or stored in localStorage. Each website needs a Node backend or compatible Node server routes; a static-only React deployment cannot use this adapter by itself. Websites using embedded forms are trusted with the passwords users submit to them. Only integrate sites you trust; the existing OIDC helper is available separately for sites that should redirect to King Auth instead.
+Forms stay inside the consuming website and call King Auth directly. No consuming-site Node adapter, client secret, DNS record, or site registration is required. Any HTTPS website can use the browser API; explicit HTTP loopback origins are supported for local development. The API uses noncredentialed CORS (`Access-Control-Allow-Origin: *`), ignores cookies, and accepts only a narrow set of authentication/account operations. Owner/admin/OAuth endpoints are excluded.
+
+Each site stores its own signed opaque bearer credential in sessionStorage, or localStorage when the user chooses to stay signed in. Sessions are bound to that site's origin. **These credentials are accessible to JavaScript on the consuming site.** This browser-storage tradeoff is intentional; use trusted scripts and protect the site against XSS. Do not log tokens or put them into URLs. The optional backend adapter remains available for sites that prefer encrypted HttpOnly cookies instead. Embedded sites are also trusted with submitted passwords.
 
 Install the library directly from GitHub; no npm publication or manual tarball is needed:
 
@@ -28,24 +28,22 @@ Install the library directly from GitHub; no npm publication or manual tarball i
 npm install github:jacobuid/king-auth#sdk
 ```
 
-Imports use **`@jacobuid/king-auth`** as shown below. The automatically maintained `sdk` branch contains only the library, version 0.2.0; `main` contains the service and workspace, so use `#sdk` when installing. Commit your consuming project's `package-lock.json` to pin the exact Git commit. To update later, run the same install command again and commit the updated lockfile. For an explicitly fixed release, replace `sdk` with a full commit SHA from the **sdk branch**. Git must be available on the installing machine. The package is not published to the npm registry.
+Imports use **`@jacobuid/king-auth`** as shown below. The automatically maintained `sdk` branch contains only the library, version 0.3.0; `main` contains the service and workspace, so use `#sdk` when installing. Commit your consuming project's `package-lock.json` to pin the exact Git commit. To update later, run the same install command again and commit the updated lockfile. For an explicitly fixed release, replace `sdk` with a full commit SHA from the **sdk branch**. Git must be available on the installing machine. The package is not published to the npm registry.
 
-Consuming backend (Express example):
+If your site has private API data, verify its bearer credential on that API's backend (Express example). This verifier does not install an auth adapter or handle signup/login:
 
 ```js
 import express from 'express';
-import { createKingAuthServer } from '@jacobuid/king-auth/server';
+import { createKingAuthVerifier } from '@jacobuid/king-auth/server';
 
 const app = express();
-const auth = createKingAuthServer({
+const auth = createKingAuthVerifier({
   origin: 'https://your-site.example',
-  secret: process.env.SESSION_SECRET, // unique, random, >=32 characters
 });
-app.use(auth.handler); // mount at root; handles /auth/api/* only
 
 app.get('/api/private', async (req, res, next) => {
   try {
-    const session = await auth.getSession(req, res);
+    const session = await auth.getSession(req);
     res.set('Cache-Control', 'no-store');
     if (!session) return res.status(401).json({ message: 'Sign in first' });
     // Check this site's permissions using session.user.id.
@@ -85,15 +83,17 @@ Every component is unstyled: semantic HTML, accessible labels/status messages, a
 
 `ProfileMenu` provides a profile/initials button that opens a dropdown showing the user's name/email, **Manage account**, and **Sign out**. Manage account opens the existing `Account` component in a native modal dialog, including email/password changes and session controls. It supports keyboard menu navigation, outside-click dismissal, Escape, modal focus containment, and focus restoration. It renders nothing while signed out. Supply an `avatar` React node for your own icon/photo and use `triggerClassName`, `menuClassName`, `dialogClassName`, and `accountClassName` to style the parts. Style `.king-auth-account-dialog::backdrop` for your site's modal overlay. No branding, footer, or theme is added.
 
-See [all components and session APIs](packages/king-auth/README.md) and [the runnable example](examples/website). `useAuth()` controls presentation; **protect backend data with `getSession()`**. A frontend check alone is insufficient. Backend checks consult the central session database every time, so revocation takes effect on the next check. An unavailable identity service causes an error; do not treat that as authenticated.
+See [all components and session APIs](packages/king-auth/README.md) and [the browser-only example](examples/browser-only). `useAuth()` controls presentation; **protect backend data with the verifier's `getSession()`**. A frontend check alone is insufficient. Backend checks consult the central session database every time, so revocation takes effect on the next check. An unavailable identity service causes an error; do not treat that as authenticated.
 
-Shared accounts do not mean automatic cross-domain login: each site has its own cookie/session. Logging into a second site uses the same account UUID. That site's memberships and permissions remain its own responsibility.
+In browser mode, `useAuth().getToken()` supplies the bearer credential for calls to your own trusted API: `fetch('/api/private', {headers: {Authorization: 'Bearer ' + getToken()}})`. A static-only site can use all auth/account components without a backend, but frontend visibility checks cannot protect HTML, JavaScript or files already shipped to the browser. Use server-side permissions or access rules for private resources.
+
+Shared accounts do not mean automatic cross-domain login: each site has its own credential/session. Logging into a second site uses the same account UUID. That site's memberships and permissions remain its own responsibility. Normal sign-out affects that session; account session controls can deliberately end sessions on other sites.
 
 ## Session lifetime
 
 Sign-in offers a remembered session of up to three years. The account component allows browser-session, one day, one week, 30 days, one year, or three years. Changes affect **the current session/device**, require a sign-in within the last ten minutes, and can never extend it beyond three years from its original creation. Signing in again creates a new session.
 
-Server expiry is authoritative and does not slide indefinitely. The backend adapter renews its encrypted browser cookie during session checks, without moving the absolute deadline. Browsers can remove cookies sooner; Chrome limits persistent cookies to [400 days](https://developer.chrome.com/blog/cookie-max-age-expires). Three years of inactivity is therefore not guaranteed. Browser-session mode has a one-day ceiling; browser session restoration may preserve session cookies after a restart.
+Server expiry is authoritative and does not slide indefinitely. Browser mode uses sessionStorage for unremembered sessions (one-day maximum) and localStorage for remembered sessions; account duration choices update central expiry and storage selection. Clearing site data or browser storage eviction can end persistence sooner. Three years of inactivity is not guaranteed. Optional `mode="proxy"` uses the older encrypted HttpOnly-cookie adapter instead; those cookies have a 400-day per-issuance cap and are renewed during use without moving the absolute session deadline.
 
 Password resets revoke existing sessions. Password changes sign out other sessions; account controls can end individual sessions or all other sessions across embedded integrations. User-interface state refreshes on focus or `refresh()`; protected backend requests always recheck. Existing standalone OIDC website sessions are separate and need their own logout policy.
 
@@ -112,11 +112,13 @@ For local service development, copy `.env.example` to ignored `.env`, set `NODE_
 
 Approval defaults on. Isolated development/test environments may set `SIGNUP_APPROVAL_REQUIRED=false`; production always requires owner approval. Owner links contain bearer secrets: do not forward them or log their query strings, and protect the owner's mailbox with MFA. The honeypot is a basic bot filter; edge DDoS protection and monitoring remain separate operating tasks.
 
-The [example](examples/website/server.mjs) runs a second website on port 4000. In `examples/website`, copy `.env.example` to `.env`, generate a fresh random `SESSION_SECRET`, run `npm install`, `npm run build`, then `npm start`. Set `KING_AUTH_ISSUER=http://localhost:3000/api/auth` for a local auth service. The default uses production King Auth. Local HTTP is explicitly allowed only for loopback development; production requires HTTPS. No OAuth client registration is needed for the embedded adapter.
+The [browser-only example](examples/browser-only) builds a static website: run `npm install` and `npm run build` there, then serve `dist` on HTTPS hosting or a loopback development server. It has no application backend or environment secret. `<AuthProvider>` defaults to browser mode and the production API. Set `apiUrl="http://localhost:3000/api/browser"` only when testing against a local auth service.
+
+The older [backend-adapter example](examples/website/server.mjs) remains available on port 4000. Its client explicitly uses `<AuthProvider mode="proxy">`. Copy its `.env.example`, generate a fresh random SESSION_SECRET, install/build/start. Keep this mode if you prefer server-managed HttpOnly cookies. Version 0.3 changes AuthProvider's default from proxy to browser, so existing adapter consumers must specify `mode="proxy"` when upgrading.
 
 Tests cover identity changes, code replay, CSRF, session revocation, backend checks, encrypted cookie tampering, duration caps and recent sign-in, OIDC/PKCE, deployment preflight, and a MariaDB adapter test enabled in CI. No production database is used by automated tests.
 
-For the optional real-browser integration test, install Chrome and run `KING_AUTH_BROWSER=1 node --test test/browser.test.mjs` (PowerShell: `$env:KING_AUTH_BROWSER='1'` then the Node command). This exercises the unstyled combined React signup/account/sign-out flow against an isolated test database/message sink.
+For optional real-browser tests, install Chrome and run `KING_AUTH_BROWSER=1 node --test test/browser.test.mjs test/browser-only.test.mjs` (PowerShell: `$env:KING_AUTH_BROWSER='1'` then the Node command). These exercise the proxy flow and browser-only flow across real origins, with cookie omission, persistence and separate-site sessions, against isolated databases/message sinks.
 
 ## Operations
 
@@ -126,4 +128,4 @@ Production secrets live only on the server: `.env`, `.database-password`, `.smtp
 
 HostDive SMTP is configured and authenticated; verification/password flows were tested through its local mailbox. External deliverability still needs SPF/DKIM verification at authoritative Namecheap DNS and an external inbox test. SMS is disabled. Backups and monitoring need an operating policy before real users are onboarded. `/health` verifies initialized service/schema, not email delivery.
 
-The backend uses Better Auth with its maintained OAuth provider plugin, self-hosted in this application. This is not a third-party hosted auth account. Embedded sites forward requests from their own backend, so rate limits currently aggregate users behind each backend IP. See the handoff before scaling or modifying proxy/IP trust.
+The backend uses Better Auth with its maintained OAuth provider and signed bearer plugins, self-hosted in this application. Browser mode contacts King Auth directly; proxy mode aggregates users behind each backend IP. The hosting runtime's socket-peer behavior still needs verification before scaling or modifying proxy/IP trust.

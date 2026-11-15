@@ -9,4 +9,4 @@ function App(){
     isSignedIn?h(React.Fragment,null,h(ProfileMenu),h('p',{'data-testid':'signed-in'},'Signed in as '+user.email),h(Account),h('button',{onClick:async()=>{const res=await fetch('/api/private');setPrivateData(res.ok?JSON.stringify(await res.json()):'Access denied');}},'Check protected backend'),h('output',null,privateData)):
     h(React.Fragment,null,h('nav',null,...[['login','Sign in'],['signup','Create account'],['reset','Forgot password']].map(([key,label])=>h('button',{key,onClick:()=>setScreen(key)},label))),screen==='signup'?h(SignUp):screen==='reset'?h(ForgotPassword):h(SignIn)));
 }
-createRoot(document.getElementById('app')).render(h(AuthProvider,null,h(App)));
+createRoot(document.getElementById('app')).render(h(AuthProvider,{mode:'proxy'},h(App)));

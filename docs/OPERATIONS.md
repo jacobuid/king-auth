@@ -5,7 +5,7 @@ This document records the deployed setup and intended architecture as of 2026-11
 ## Product decisions
 
 - Shared global user pool, permanent UUID primary key. Emails may change after proving both old/new addresses.
-- Primary integration: unstyled React forms inside consuming sites plus a same-origin Node backend adapter. No public marketing page at kingauth.app; root returns an empty 404. Documentation stays in GitHub. Required central auth/consent/account routes remain for compatibility; `/developers` requires a verified administrator.
+- Primary integration since SDK0.3: unstyled browser-only React forms, direct cookie-free requests to kingauth.app/api/browser, no per-site DNS/registration/adapter. The user explicitly chose browser-stored credentials and no origin allowlist. Any HTTPS website or HTTP loopback development origin can use the public gateway. The optional Node adapter remains via mode="proxy". No public marketing page at kingauth.app; root returns an empty404. Documentation stays in GitHub. Required central auth/consent/account routes remain for compatibility; `/developers` requires a verified administrator.
 - Email-only default signup. No SMS provider is configured. Username/phone APIs are optional legacy functionality; do not add them back to default forms without a request.
 - Family-only access: all new production users require explicit approval emailed to jacobuid@gmail.com. A hidden signup honeypot is checked centrally. Two incorrect passwords require an emailed verification code before another password attempt; five incorrect passwords lock the account and revoke sessions. The owner gets one alert per lock event with unlock/delete/set-password links. No math challenge is used. Owner links are action-bound, single-use, seven-day bearer secrets with GET previews and explicit POST confirmation.
 - Account component: email/password changes, current/new/confirm password, session duration up to three years, session review/revocation, sign-out. Sensitive changes require a recent sign-in. Cookies can disappear before the server deadline.
@@ -19,18 +19,20 @@ This document records the deployed setup and intended architecture as of 2026-11
 | `app.js` | Passenger-compatible entry and safe startup failure response |
 | `server/index.mjs` | Configuration loading, database startup/additive migrations, HTTP routes/headers, blank root |
 | `server/auth.mjs` | Better Auth plugins, UUIDs, OTPs, session caps/control endpoints, recent sign-in, OAuth policy |
+| `server/browser-api.mjs` | Public cookie-free CORS gateway, route/body allowlist, site-bound session verification |
 | `server/config.mjs` | Environment/private-file configuration, production checks |
 | `server/delivery.mjs` | Verified-TLS SMTP or explicit sendmail; optional Twilio |
 | `server/approval.mjs`, `server/abuse.mjs` | Owner signup approval, per-account failed passwords, email step-up and owner lock recovery |
 | `client/portal.mjs`, `public/` | Minimal central compatibility UI; built `public/app.js` is ignored |
 | `packages/king-auth/forms.mjs` | Unstyled React components and session context |
+| `packages/king-auth/browser.mjs`, `routes.mjs` | Browser bearer transport/storage and shared public-operation definitions |
 | `packages/king-auth/proxy.mjs` | Same-origin adapter, encrypted cookie, central verification, CSRF/route/body allowlist |
 | `packages/king-auth/server.mjs` | Server exports and optional OIDC helper |
 | `examples/website` | Runnable consuming-site React/backend example |
 | `test/` | In-memory identity/security/adapter tests and ephemeral CI MariaDB test |
 | `.github/workflows/deploy.yml` | Tests/build, SSH deploy with preflight and HTTPS check |
 
-The package is version 0.2.0 and installs directly with `npm install github:jacobuid/king-auth#sdk`. It is not published on npm; do not claim registry installation works until publication is confirmed. The `sdk` distribution branch is generated from `packages/king-auth` with `git subtree push` after successful main deployment/tests. Do not edit it manually or merge it into main. The workflow's SDK job uses scoped contents-write permission and full Git history to push a fast-forward split. Main is the server/workspace, not the npm installation target. Consumers should commit their lockfiles; explicit pins must use sdk-branch commit SHAs, not main SHAs. Manual `npm pack --workspace @jacobuid/king-auth` remains available for offline use. The 0.2 React API replaces 0.1 redirect links with embedded forms. The OIDC helper remains separately available.
+The package is version0.3.0 and installs directly with `npm install github:jacobuid/king-auth#sdk`. It is not published on npm; do not claim registry installation works until publication is confirmed. The `sdk` distribution branch is generated from `packages/king-auth` with `git subtree push` after successful main deployment/tests. Do not edit it manually or merge it into main. The workflow's SDK job uses scoped contents-write permission and full Git history to push a fast-forward split. Main is the server/workspace, not the npm installation target. Consumers should commit their lockfiles; explicit pins must use sdk-branch commit SHAs, not main SHAs. Manual packing remains available for offline use. The0.2 React API replaced0.1 redirect links;0.3 changes AuthProvider's default from proxy to browser. Existing adapter consumers must explicitly set mode="proxy". The OIDC helper remains separately available.
 
 `ProfileMenu` wraps the existing Account UI in a native modal, reached through a profile dropdown with identity and sign-out. It has no bundled CSS/branding. Preserve keyboard navigation, outside dismissal, Escape, native modal focus containment and focus restoration when editing it. The consuming website supplies its avatar and styles, including `::backdrop`; no new server endpoints are needed.
 
@@ -58,7 +60,7 @@ Private files under the application root (mode 600):
 - `.runtime-secret`: persistent central auth/encryption secret; fallback when BETTER_AUTH_SECRET is absent.
 - `.env.before-app-user`: historical private backup, if still present.
 
-Do not regenerate `.runtime-secret` on each deployment. Back up secrets securely with the database. Consuming sites use their own separate random SESSION_SECRET, never the central secret. Changing a consuming-site secret invalidates its encrypted cookies.
+Do not regenerate `.runtime-secret` on each deployment. Back up secrets securely with the database. Browser-only consuming sites need no secret. Optional proxy-mode sites use their own separate random SESSION_SECRET, never the central secret. Changing a proxy site's secret invalidates its encrypted cookies.
 
 User originally entered DB values in Node Selector. Later inspection found empty `env_vars`; the cause is unproven. Do not claim the user failed to save or that deployment erased them. The repaired setup uses private server files and has passed authenticated DB/migration checks.
 
@@ -84,13 +86,19 @@ Startup runs additive schema migrations and refuses unsafe ones. Deployments upd
 
 A private SQL dump was created under the server's `.backups/pre-approval-*.sql` before the owner-approval/lockout schema deployment. Files are mode600, directory700; credentials were supplied through a temporary private client config, not command arguments. The temporary config was removed. This one-time snapshot is not a scheduled, restore-tested backup policy.
 
+A second private `.backups/pre-browser-*.sql` snapshot was created before adding session.browserOrigin for browser-only authentication. Preserve these snapshots; neither is included in the deployment archive or repository.
+
 Useful nonsecret checks: HTTPS `/health` should return ok, `/api/config` should report email enabled/SMS disabled, `/` intentionally returns blank404, anonymous `/developers`404, OIDC discovery at `/.well-known/openid-configuration`. A health response confirms initialization/schema success, not continuous DB availability or mail deliverability.
 
 ## Security and remaining work
 
-Central bearer tokens are revocable DB sessions; the adapter encrypts them in HttpOnly cookies and rechecks centrally, rather than trusting a decoded identity snapshot. The encrypted browser envelope is resealed on access, but the underlying central token is not rotated on every check. Session lifetime has a fixed three-year creation ceiling; cookie renewal is not a new login. Browsers cap cookie lifetime and may clear cookies at any time.
+Central bearer credentials are signed opaque, revocable DB sessions, not self-contained JWTs. In browser mode they are intentionally JavaScript-accessible in per-origin sessionStorage or localStorage (remembered). This tradeoff was explicitly selected by the user. Do not imply HttpOnly protection in browser mode. XSS or untrusted scripts on an integrating site can access its credential and submitted passwords. Normal sessions are per site, not SSO. The server stores session.browserOrigin and enforces it in the public gateway and raw get-session hook; raw HTTP strips caller-supplied x-king-auth-browser-origin. The backend verifier uses its configured expected origin and rechecks centrally. Do not trust local decoded state to protect private APIs/files.
 
-The central rate-limit IP header is overwritten from the socket peer. A consuming site's backend aggregates requests under its server IP. Do not trust arbitrary browser X-Forwarded-For to bypass this. A trusted proxy/client-IP policy and capacity/rate-limit plan are needed before onboarding many sites/users.
+The public browser gateway accepts any valid HTTPS Origin or explicit HTTP loopback Origin. It uses Access-Control-Allow-Origin:* without credentials, never forwards browser Cookie/internal headers, and exposes only the allowlisted auth/account routes. It authenticates with signed bearer tokens using Better Auth's requireSignature mode; owner/admin/OAuth routes are excluded. Its Origin rewrite into the internal engine is intentional and occurs only after these cookie-free checks. Keep canonical /api/auth origin protection unchanged. Do not switch to credentialed wildcard CORS or silently reintroduce third-party cookies. Requests without Origin, opaque/null origins and non-loopback HTTP sites are rejected.
+
+The optional proxy adapter still encrypts central credentials in HttpOnly cookies and rechecks them. Its envelope is resealed on access, but underlying bearer tokens are not rotated on every check. Server lifetime has a fixed three-year creation ceiling. Browsers may clear cookies/storage earlier; the400-day cookie cap applies to proxy mode, not browser-mode localStorage. No browser-only UI can protect static assets already downloaded.
+
+The central rate-limit IP header is overwritten from the socket peer. Browser mode reaches King Auth directly; proxy mode aggregates requests under each website's backend IP. The hosting runtime may still supply loopback peers. Do not trust arbitrary browser X-Forwarded-For to bypass this. A trusted proxy/client-IP policy and capacity/rate-limit plan are needed before onboarding many sites/users.
 
 No owner/admin account is automatically granted privileges. Create/verify an owner, then explicitly configure its UUID in KING_AUTH_ADMIN_IDS if OIDC client registration is needed. Embedded integration does not require OAuth client registration. Websites must implement their own membership/authorization checks using UUIDs.
 

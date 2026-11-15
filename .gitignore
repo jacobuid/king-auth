@@ -11,5 +11,6 @@ node_modules/
 .smtp-password*
 public/app.js
 examples/website/dist/
+examples/browser-only/dist/
 deploy.tar.gz
 *.tgz
