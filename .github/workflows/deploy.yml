@@ -16,6 +16,19 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    services:
+      mysql:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: king-auth-ci-only
+          MARIADB_DATABASE: king_auth_ci_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=15
     env:
       SSH_HOST: ${{ vars.SSH_HOST || 'lv-shared01.dapanel.net' }}
       SSH_PORT: ${{ vars.SSH_PORT || '53667' }}
@@ -28,6 +41,8 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+        env:
+          CI_MYSQL_PASSWORD: king-auth-ci-only
       - run: npm run build
       - name: Package application
         run: tar -czf deploy.tar.gz app.js package.json package-lock.json server public packages
