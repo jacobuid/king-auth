@@ -52,7 +52,7 @@ Ending or revoking a King Auth session does not automatically clear sessions a w
 
 ## Automatic deployment
 
-Pushes to `main` run `.github/workflows/deploy.yml`: install locked dependencies, check syntax, run security integration tests, build the browser bundle, upload an archive over verified SSH, install runtime dependencies, restart Passenger, and verify `/health` over HTTPS. Hosting environment variables are preserved.
+Pushes to `main` run `.github/workflows/deploy.yml`: install locked dependencies, check syntax, run security integration tests, build the browser bundle, upload an archive over verified SSH, verify the existing production configuration and database connection before extracting application files, install runtime dependencies, restart Passenger, and verify `/health` over HTTPS. Hosting environment variables are preserved. The preflight requires the current installation's runtime dependencies; it is an update guard rather than an initial provisioning tool.
 
 One-time setup:
 

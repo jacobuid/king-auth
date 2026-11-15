@@ -60,8 +60,9 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
       - name: Upload and restart
         run: |
-          ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'mkdir -p /home/xdjzyshp/king-auth/tmp'
+          ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'mkdir -p /home/xdjzyshp/king-auth/tmp /home/xdjzyshp/king-auth/scripts'
           scp -P "$SSH_PORT" -o BatchMode=yes deploy.tar.gz "$SSH_USER@$SSH_HOST:/home/xdjzyshp/king-auth/deploy.tar.gz"
+          scp -P "$SSH_PORT" -o BatchMode=yes scripts/preflight.mjs "$SSH_USER@$SSH_HOST:/home/xdjzyshp/king-auth/scripts/preflight.mjs"
           ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$SSH_HOST" 'bash -s' <<'DEPLOY'
           set -eo pipefail
           cd /home/xdjzyshp/king-auth
@@ -75,6 +76,7 @@ jobs:
             umask 077
             printf '%s\n' 'AUTH_BASE_URL=https://kingauth.app' 'DB_HOST=localhost' 'DB_NAME=xdjzyshp_king-autk' 'DB_USER=xdjzyshp_king-autk' '# Set DB_PASSWORD in DirectAdmin or in this private file.' > .env
           fi
+          node scripts/preflight.mjs
           tar -xzf deploy.tar.gz
           npm ci --omit=dev --ignore-scripts
           touch tmp/restart.txt
