@@ -8,6 +8,7 @@ node_modules/
 .local/
 .runtime-secret
 .database-password*
+.smtp-password*
 public/app.js
 deploy.tar.gz
 *.tgz
