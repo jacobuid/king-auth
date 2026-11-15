@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { loadEnvFile } from 'node:process';
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { createPool } from 'mysql2';
+import { createPool } from 'mysql2/promise';
 import { DatabaseSync } from 'node:sqlite';
 import { toNodeHandler, fromNodeHeaders } from 'better-auth/node';
 import { getMigrations } from 'better-auth/db/migration';
