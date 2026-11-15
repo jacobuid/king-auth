@@ -1,0 +1,13 @@
+{
+  "name": "@jacobuid/king-auth",
+  "version": "0.1.0",
+  "description": "React components and OIDC server helpers for the shared King Auth service",
+  "type": "module",
+  "exports": { ".": "./server.mjs", "./server": "./server.mjs", "./react": "./react.mjs" },
+  "files": ["server.mjs", "react.mjs", "README.md"],
+  "engines": { "node": ">=24" },
+  "dependencies": { "openid-client": "^6.9.0" },
+  "peerDependencies": { "react": ">=18" },
+  "peerDependenciesMeta": { "react": { "optional": true } },
+  "license": "UNLICENSED"
+}
