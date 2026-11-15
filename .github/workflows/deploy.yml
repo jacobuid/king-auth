@@ -45,7 +45,7 @@ jobs:
           CI_MYSQL_PASSWORD: king-auth-ci-only
       - run: npm run build
       - name: Package application
-        run: tar -czf deploy.tar.gz app.js package.json package-lock.json server public packages
+        run: tar -czf deploy.tar.gz app.js package.json package-lock.json server public packages scripts
       - name: Configure SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
