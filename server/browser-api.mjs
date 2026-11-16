@@ -51,12 +51,13 @@ export function createBrowserAPI({auth,config}){
       }
       const remember=body?.rememberMe===true;
       if(body)body=Object.fromEntries(rule[1].filter(key=>body[key]!==undefined&&key!=='persistent').map(key=>[key,body[key]]));
+      if(route==='reauthenticate'||route==='reauthentication/consume')body.origin=origin;
       if(route==='change-password')body.revokeOtherSessions=true;
       if(route.startsWith('sign-in/')||route==='sign-up/email'||route==='email-otp/verify-email')headers.delete('Authorization');
       if(body)headers.set('Content-Type','application/json');
       const response=await auth.handler(new Request(config.baseURL+'/api/auth/'+route,{method:rule[0],headers,body:body?JSON.stringify(body):undefined}));
       let data=publicData(await response.json());
-      const token=response.headers.get('set-auth-token');
+      const token=route==='reauthenticate'||route==='reauthentication/consume'?null:response.headers.get('set-auth-token');
       if(response.ok&&token){
         headers.set('Authorization','Bearer '+token);headers.delete('Content-Type');
         if(route==='email-otp/verify-email'){

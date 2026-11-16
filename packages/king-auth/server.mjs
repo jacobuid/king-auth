@@ -14,7 +14,15 @@ export function createKingAuthVerifier({origin,apiUrl='https://kingauth.app/api/
     if(!response.ok)throw Error('King Auth verification unavailable');
     return response.json();
   }
-  return {getSession,async isSignedIn(request){return Boolean((await getSession(request))?.user);}};
+  async function verifyReauthentication(request,{proof,action}){
+    const authorization=request.headers?.get?request.headers.get('authorization'):request.headers?.authorization;
+    if(!authorization||!/^Bearer [^\s]+$/i.test(authorization))return false;
+    const response=await send(endpoint.href.replace(/\/$/,'')+'/reauthentication/consume',{method:'POST',headers:{Origin:origin,Authorization:authorization,'Content-Type':'application/json'},body:JSON.stringify({proof,action}),redirect:'error',signal:AbortSignal.timeout(15000)});
+    if([400,401,403,429].includes(response.status))return false;
+    if(!response.ok)throw Error('King Auth verification unavailable');
+    return (await response.json()).allowed===true;
+  }
+  return {getSession,verifyReauthentication,async isSignedIn(request){return Boolean((await getSession(request))?.user);}};
 }
 
 /** Configure once per consuming backend. Transactions belong in its server-side session. */

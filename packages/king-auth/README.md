@@ -8,7 +8,7 @@ Password policy: 8–128 characters with uppercase, lowercase, a number, and a s
 npm install github:jacobuid/king-auth#sdk
 ```
 
-Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.3.3); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
+Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.4.0); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
 
 ## Optional backend adapter
 
@@ -67,6 +67,7 @@ For private API data, send `Authorization: Bearer ${getToken()}` from your UI to
 | `SignOut` | Unstyled button, optional children and normal button attributes |
 | `ProfileMenu` | Profile button, identity dropdown, Manage account modal, and sign-out |
 | `Avatar` | Gravatar image with a local generic silhouette fallback |
+| `Reauthenticate` | Confirm current password for one protected action without renewing or ending the login session |
 
 Forms accept `className`, `style`, `submitLabel`, `onSuccess(data)`, and `onError(error)`. Account/Sessions accept `className`/`style`. SignOut accepts `onSuccess()`/`onError(error)`. Components use semantic HTML and accessible labels/announcements, no CSS or inline theme; style `.king-auth-form`, `.king-auth-fields`, `.king-auth-field`, `.king-auth-error`, `.king-auth-status` in your app. Inputs/buttons inherit your site's CSS. Caller-provided `style` is optional.
 
@@ -142,6 +143,61 @@ Remembered sessions can last up to three years from creation. Account duration c
 Browser mode persists opaque credentials in localStorage when remembered, with an authoritative server deadline capped at three years. The SDK checks server validity on refresh; the deadline does not slide. Unremembered sessions use sessionStorage with a one-day maximum. Shortening/changing duration updates central expiry and storage selection. Optional proxy-mode cookies are renewed when checked and limited to 400 days per issuance. Browsers may clear storage/cookies sooner, so three years of inactivity is not guaranteed.
 
 Version 0.3 changes AuthProvider's default to browser mode. Existing 0.2 backend-adapter consumers should add `mode="proxy"`; direct browser consumers can use `<AuthProvider>` without props.
+
+## Confirm a password without signing out
+
+Render the unstyled `Reauthenticate` form inline or in your own popup when a signed-in user attempts a sensitive operation. `action` is an application-defined identifier, for example `settings:change`, `billing:edit`, or `document:123:delete`. It accepts the usual form styling/labels/error callback and `onSuccess({proof,action,expiresAt})`. The password field includes its show/hide toggle. Existing passwords are accepted; this is not a new-password form.
+
+```jsx
+import {Reauthenticate,useAuth} from '@jacobuid/king-auth';
+
+function ConfirmSettingChange() {
+  const {getToken}=useAuth();
+  return <Reauthenticate
+    action="settings:change"
+    onError={error => console.log(error.code)}
+    onSuccess={async ({proof}) => {
+      const response=await fetch('/api/settings', {
+        method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+getToken()},
+        body:JSON.stringify({proof,setting:'your-new-value'}),
+      });
+      // Handle denial locally; do not call signOut() for a failed confirmation.
+      if (!response.ok) return;
+      // Show your site's successful-setting-change state here.
+    }}
+  />;
+}
+```
+
+For custom UI, `await useAuth().reauthenticate(action,password)` returns the same proof. Browser clients can also call `client.request('reauthenticate',{action,password})`. Keep the proof transient; do not put it in URLs or persist it as a reusable authorization flag.
+
+On your backend, use the same verifier used for normal sessions:
+
+```js
+import express from 'express';
+import {createKingAuthVerifier} from '@jacobuid/king-auth/server';
+const app=express();
+const auth=createKingAuthVerifier({origin:'https://your-site.example'});
+app.post('/api/settings',express.json(),async(req,res,next)=>{
+  try {
+    const session=await auth.getSession(req);
+    if(!session)return res.status(401).json({allowed:false,message:'Sign in first.'});
+    // Check this user's application permissions before consuming the proof.
+    const allowed=await auth.verifyReauthentication(req,{
+      proof:req.body.proof,
+      action:'settings:change', // derive this on the server; never trust a client-supplied action
+    });
+    if(!allowed)return res.status(403).json({allowed:false,message:'Sorry, you cannot access this page or perform this action.'});
+    // Validate and save req.body.setting here, using session.user.id.
+    res.json({allowed:true});
+  }catch(error){next(error);} // deny on service errors; do not log out the user
+});
+```
+
+The optional backend adapter (`createKingAuthServer`, proxy mode) exposes the same `verifyReauthentication(req,{proof,action})` method; call its `getSession(req)` for normal authorization. Proofs are scoped to current session, user, site and action, expire after five minutes or session expiry (whichever is sooner), and are atomically consumed once. For record/transaction-specific operations, include that trusted identifier in the action string. A browser-side success flag alone must never authorize a backend operation. Consuming a proof does not renew the session or satisfy King Auth's separate recent-sign-in rules for its own identity changes.
+
+Wrong passwords return HTTP 403 JSON with `allowed:false`, `code:'REAUTHENTICATION_FAILED'`, and a denial message. Throttling returns 429 without locking the account; there are five attempts per minute per session plus IP throttling. Successful and failed confirmations do not revoke/rotate/renew the login session, change its expiry, or increment the normal sign-in failure counter. The SDK preserves browser credentials and signed-in UI state for confirmation errors, including 401 and service failures. Independently expired/revoked sessions remain invalid and may be cleared by a later normal session refresh; confirmation cannot restore or extend them.
 
 ## Optional OIDC helper
 

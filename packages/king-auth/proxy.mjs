@@ -5,6 +5,8 @@ const MAX_SECONDS = 3 * 365 * 86400;
 const BROWSER_COOKIE_SECONDS = 400 * 86400;
 const routes = new Map([
   ['get-session', ['GET', []]], ['sign-out', ['POST', []]],
+  ['reauthenticate',['POST',['password','action']]],
+  ['reauthentication/consume',['POST',['proof','action']]],
   ['sign-in/email', ['POST', ['email','password','rememberMe','loginCode']]],
   ['sign-in-code/send',['POST',['email']]],
   ['sign-in/username', ['POST', ['username','password','rememberMe','loginCode']]],
@@ -113,6 +115,7 @@ export function createKingAuthProxy({ origin, secret, issuer='https://kingauth.a
       if(Buffer.byteLength(JSON.stringify(body))>16384)return respond(res,413,{message:'Request too large'});
       body=Object.fromEntries(rule[1].filter(key=>body[key]!==undefined).map(key=>[key,body[key]]));
       if(route==='change-password')body.revokeOtherSessions=true;
+      if(route==='reauthenticate'||route==='reauthentication/consume')body.origin=site.origin;
       const state=await read(req)||{jar:{},remember:false};state.expires=state.exp;
       if(route==='account/session-duration'){
         state.remember=body.persistent!==false;
@@ -120,6 +123,7 @@ export function createKingAuthProxy({ origin, secret, issuer='https://kingauth.a
       }
       if(route.startsWith('sign-in/')||route==='sign-up/email'){state.jar={};delete state.exp;state.expires=undefined;state.remember=body.rememberMe===true;body.rememberMe=state.remember;}
       const {response,data}=await upstream(route,state,body);
+      if(route==='reauthenticate'||route==='reauthentication/consume')return respond(res,response.status,clean(data));
       if(response.ok){
         if(route==='sign-out')putCookie(res,'',0);
         else {
@@ -141,5 +145,12 @@ export function createKingAuthProxy({ origin, secret, issuer='https://kingauth.a
       return respond(res,response.status,clean(data));
     }catch {return respond(res,502,{message:'Authentication service unavailable. Please try again.'});}
   }
-  return {handler,getSession:session,async isSignedIn(req){return Boolean(await session(req));}};
+  async function verifyReauthentication(req,{proof,action}){
+    const state=await read(req);if(!state)return false;
+    const {response,data}=await upstream('reauthentication/consume',state,{proof,action,origin:site.origin});
+    if([400,401,403,429].includes(response.status))return false;
+    if(!response.ok)throw Error('King Auth verification unavailable');
+    return data.allowed===true;
+  }
+  return {handler,getSession:session,verifyReauthentication,async isSignedIn(req){return Boolean(await session(req));}};
 }

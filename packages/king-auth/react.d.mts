@@ -15,6 +15,7 @@ export interface AuthState {
   refresh(): Promise<EmbeddedSession | null>;
   call(route: string, body?: Record<string, unknown>): Promise<unknown>;
   signOut(): Promise<unknown>;
+  reauthenticate(action: string,password: string): Promise<ReauthenticationProof>;
   getToken(): string | null;
 }
 export interface FormProps {
@@ -28,6 +29,8 @@ export function AuthProvider(props: AuthProviderProps): ReactElement;
 export function useAuth(): AuthState;
 export const useSession: typeof useAuth;
 export function SignIn(props?: FormProps): ReactElement;
+export interface ReauthenticationProof {proof: string;action: string;expiresAt: string}
+export function Reauthenticate(props: Omit<FormProps,'onSuccess'> & {action: string;onSuccess?(result: ReauthenticationProof): void | Promise<void>}): ReactElement;
 export const SignInButton: typeof SignIn;
 export function SignUp(props?: FormProps): ReactElement;
 export const SignUpButton: typeof SignUp;

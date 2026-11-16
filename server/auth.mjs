@@ -8,6 +8,7 @@ import { approvalPolicy } from './approval.mjs';
 import { abusePolicy } from './abuse.mjs';
 import {enforceBrowserSessionOrigin} from './session-origin.mjs';
 import {validNewPassword,PASSWORD_MESSAGE} from '../packages/king-auth/password-policy.mjs';
+import {reauthenticationPlugin} from './reauthentication.mjs';
 
 export function createAuth({ config, database, sender }) {
   const isAdmin = user => Boolean(user && config.adminIds.includes(user.id) && user.emailVerified);
@@ -35,6 +36,7 @@ export function createAuth({ config, database, sender }) {
       '/sign-in/*': { window: 60, max: 5 }, '/sign-up/*': { window: 60, max: 3 },
       '/email-otp/*': { window: 60, max: 5 }, '/phone-number/*': { window: 60, max: 5 },
       '/sign-in-code/send':{window:60,max:5},
+      '/reauthenticate':{window:60,max:5},
     } },
     hooks: { before: createAuthMiddleware(async ctx => {
       await enforceBrowserSessionOrigin(ctx,config);
@@ -64,6 +66,7 @@ export function createAuth({ config, database, sender }) {
     }) },
     plugins: [
       bearer({requireSignature:true}),
+      reauthenticationPlugin(),
       approval.plugin,
       abuse.plugin,
       { id: 'king-account', endpoints: {

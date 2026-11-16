@@ -19,6 +19,13 @@ test('MySQL production adapter migrates and persists verified identities', { ski
     assert.equal(verified.user.id, signup.user.id);
     const login = await auth.api.signInUsername({ body: { username: 'mysql_test', password: 'A MySQL test password 123!' } });
     assert.equal(login.user.id, signup.user.id);
+    const signed=await auth.handler(new Request(config.baseURL+'/api/auth/sign-in/username',{method:'POST',headers:{Origin:config.baseURL,'Content-Type':'application/json'},body:JSON.stringify({username:'mysql_test',password:'A MySQL test password 123!'})}));
+    assert.equal(signed.status,200);const bearer=signed.headers.get('set-auth-token');assert.ok(bearer);
+    const reauthHeaders={Origin:config.baseURL,'Content-Type':'application/json',Authorization:'Bearer '+bearer};
+    const issued=await auth.handler(new Request(config.baseURL+'/api/auth/reauthenticate',{method:'POST',headers:reauthHeaders,body:JSON.stringify({origin:'https://mysql-site.example',action:'settings:change',password:'A MySQL test password 123!'})}));
+    assert.equal(issued.status,200);const proof=await issued.json();
+    const consume=()=>auth.handler(new Request(config.baseURL+'/api/auth/reauthentication/consume',{method:'POST',headers:reauthHeaders,body:JSON.stringify({origin:'https://mysql-site.example',action:'settings:change',proof:proof.proof})}));
+    assert.equal((await consume()).status,200);assert.equal((await consume()).status,403);
     const next = await getMigrations(auth.options);
     assert.equal(next.toBeCreated.length, 0);
     assert.equal(next.toBeAdded.length, 0);
