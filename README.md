@@ -8,7 +8,7 @@ Password policy: 8–128 characters with uppercase, lowercase, a number, and a s
 npm install github:jacobuid/king-auth#sdk
 ```
 
-Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.3.2); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
+Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.3.3); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
 
 ## Optional backend adapter
 
@@ -66,6 +66,7 @@ For private API data, send `Authorization: Bearer ${getToken()}` from your UI to
 | `Account` / `AccountSettings` | Email, UUID, email/password/session controls, sign-out; sign-in if anonymous |
 | `SignOut` | Unstyled button, optional children and normal button attributes |
 | `ProfileMenu` | Profile button, identity dropdown, Manage account modal, and sign-out |
+| `Avatar` | Gravatar image with a local generic silhouette fallback |
 
 Forms accept `className`, `style`, `submitLabel`, `onSuccess(data)`, and `onError(error)`. Account/Sessions accept `className`/`style`. SignOut accepts `onSuccess()`/`onError(error)`. Components use semantic HTML and accessible labels/announcements, no CSS or inline theme; style `.king-auth-form`, `.king-auth-fields`, `.king-auth-field`, `.king-auth-error`, `.king-auth-status` in your app. Inputs/buttons inherit your site's CSS. Caller-provided `style` is optional.
 
@@ -86,9 +87,49 @@ All password inputs have an unstyled eye toggle, independently showing/hiding th
 </AuthProvider>
 ```
 
-The default trigger shows initials from the user's name or email. Clicking it opens name/email plus **Manage account** and **Sign out**. Manage account opens the existing `Account` component inside a native `<dialog>` modal. It includes verified email changes, password changes, session duration and session revocation. The dropdown closes on outside click or Escape; arrow keys/Home/End navigate its actions. The modal contains keyboard focus and returns focus to the profile button when closed. It closes with Escape or **Close**. The component renders nothing for anonymous/loading sessions.
+The default trigger shows the user's Gravatar, with a local generic gray silhouette if no Gravatar exists or loading fails. Clicking it opens name/email plus **Manage account** and **Sign out**. Manage account opens the existing `Account` component inside a native `<dialog>` modal. It includes verified email changes, password changes, session duration and session revocation. The dropdown closes on outside click or Escape; arrow keys/Home/End navigate its actions. The modal contains keyboard focus and returns focus to the profile button when closed. It closes with Escape or **Close**. The component renders nothing for anonymous/loading sessions.
 
 All appearance belongs to the importing site. In addition to the class props above, hooks are `.king-auth-profile`, `.king-auth-profile-trigger`, `.king-auth-profile-dropdown`, `.king-auth-profile-identity`, `.king-auth-account-dialog`, and `.king-auth-account-close`. Style `.king-auth-account-dialog::backdrop` for the overlay. Native browser defaults apply until your CSS overrides them. There is no bundled styling, branding, or development footer. `triggerLabel` customizes the accessible button name (default **Open profile menu**); `avatar` accepts any React node. Popup contents are the same `Account` component you can also render directly.
+
+## Avatar overrides and styling
+
+Avatar precedence is **custom `avatar` → Gravatar → generic local silhouette**. The default avatar is shown in the profile button, dropdown and account popup. The fallback is a built-in SVG shaped like a generic profile photo; it needs no external image request. Gravatar uses SHA-256 of the trimmed/lowercase email, G-rated images, and `d=404` so missing images select our local fallback. It updates when the email changes. See [Gravatar's image documentation](https://docs.gravatar.com/sdk/images/).
+
+```jsx
+import {ProfileMenu, Account, Avatar} from '@jacobuid/king-auth';
+
+// Automatic Gravatar with generic fallback:
+<ProfileMenu />
+
+// Override with your own photo or component. No Gravatar requests are made.
+<ProfileMenu avatar={<img src="/images/profile.jpg" alt="" className="my-avatar" />} />
+<ProfileMenu avatar={<MyCustomAvatar />} />
+
+// Disable Gravatar entirely and use the generic silhouette:
+<ProfileMenu gravatar={false} avatarSize={48} avatarClassName="my-avatar" />
+
+// Standalone account UI accepts the same avatar overrides:
+<Account avatar={<MyCustomAvatar />} />
+<Account gravatar={false} avatarSize={64} avatarClassName="my-avatar" />
+
+// Or use the avatar by itself:
+<Avatar email="person@example.com" size={64} alt="Profile photo" className="my-avatar" />
+```
+
+Put appearance rules in your own site's CSS, for example:
+
+```css
+.my-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+```
+
+The default image/SVG has `.king-auth-avatar`; fallback SVGs also have `data-avatar-fallback`. `avatarSize` defaults to40 pixels (16–2048 supported) and supplies intrinsic image/SVG dimensions; your CSS may override them. `avatarClassName` styles the default Gravatar/fallback, while custom `avatar` content supplies its own classes and error handling. Set `avatar={false}` to hide the avatar entirely. Explicitly supplied `style` is optional; no theme/CSS is injected by the library.
+
+Gravatar requests disclose an email hash and the browser's network address to Gravatar, with referrer transmission disabled. Set `gravatar={false}` or supply a custom avatar to avoid those requests. If your site uses CSP, allow `https://www.gravatar.com` in `img-src` to load Gravatars. A blocked/failed image still falls back to the local silhouette. No API key or additional backend configuration is needed.
 
 Production signup requires approval by the owner, notified at jacobuid@gmail.com. Verification displays a pending-approval message; approval does not replace email verification. Signup includes a hidden honeypot field. SignIn automatically asks for an emailed code after two wrong passwords. The code expires after five minutes, has three guesses, and is consumed for one password attempt; resends have a one-minute cooldown. Five wrong passwords lock the account and notify the owner once, with confirmation links to unlock, delete or set a password. Missing/invalid codes do not count as password attempts. These policies are enforced by the central server across websites/IP addresses.
 
