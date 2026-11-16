@@ -28,7 +28,7 @@ export function createBrowserClient({apiUrl='https://kingauth.app/api/browser',f
     const headers={...(body===undefined?{}:{'Content-Type':'application/json'}),...(previous?{Authorization:'Bearer '+previous.token}:{})};
     const response=await send(base+'/'+route,{method:body===undefined?'GET':'POST',credentials:'omit',headers,body:body===undefined?undefined:JSON.stringify(payload),redirect:'error',signal:AbortSignal.timeout(20000)});
     const data=await response.json();
-    if(!response.ok){if(response.status===401&&previous)clear();const error=new Error(data?.message||'Authentication request failed');error.code=data?.code;error.status=response.status;throw error;}
+    if(!response.ok){if(response.status===401&&previous&&!['reauthenticate','reauthentication/consume'].includes(route))clear();const error=new Error(data?.message||'Authentication request failed');error.code=data?.code;error.status=response.status;throw error;}
     if(signingIn)pendingRemember=remember;
     if(data?.browserSession){save({token:data.browserSession.token,expiresAt:data.browserSession.expiresAt,remember});delete data.browserSession;}
     else if(route==='account/session-duration'&&previous)save({...previous,expiresAt:data.expiresAt,remember});

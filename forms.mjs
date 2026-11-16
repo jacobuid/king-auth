@@ -20,9 +20,10 @@ export function AuthProvider({ children, mode='browser',apiUrl='https://kingauth
   },[basePath,browser]);
   const refresh=useCallback(async()=>{try{const data=await request('get-session');setState({user:data?.user||null,session:data?.session||null,isSignedIn:!!data?.user,loading:false,error:null});return data;}catch(error){setState({user:null,session:null,isSignedIn:false,loading:false,error});throw error;}},[request]);
   useEffect(()=>{let active=true;const check=()=>{if(active)refresh().catch(()=>{});};check();window.addEventListener('focus',check);window.addEventListener('storage',check);return()=>{active=false;window.removeEventListener('focus',check);window.removeEventListener('storage',check);};},[refresh]);
-  const call=useCallback(async(route,body)=>{const data=await request(route,body);if(body!==undefined)await refresh();return data;},[request,refresh]);
+  const call=useCallback(async(route,body)=>{const data=await request(route,body);if(body!==undefined&&!['reauthenticate','reauthentication/consume'].includes(route))await refresh();return data;},[request,refresh]);
+  const reauthenticate=useCallback((action,password)=>request('reauthenticate',{action,password}),[request]);
   const signOut=useCallback(()=>call('sign-out',{}),[call]);
-  return h(Context.Provider,{value:{...state,isLoading:state.loading,refresh,call,signOut,getToken:()=>browser?.getToken()||null}},children);
+  return h(Context.Provider,{value:{...state,isLoading:state.loading,refresh,call,signOut,reauthenticate,getToken:()=>browser?.getToken()||null}},children);
 }
 export function useAuth(){const value=useContext(Context);if(!value)throw Error('Wrap King Auth components in AuthProvider');return value;}
 export function useSession(){return useAuth();}
@@ -38,7 +39,7 @@ function Form({title,fields,action,submitLabel='Continue',actions=[],onSuccess,o
   const prefix=useId();const ref=useRef();const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');const [failed,setFailed]=useState(false);
   const [revealed,setRevealed]=useState({});
   const values=()=>Object.fromEntries(new FormData(ref.current));
-  const execute=async(work,primary)=>{setBusy(true);setMessage('');setFailed(false);try{const result=await work(values());setMessage(result?.message||'Done.');if(primary){ref.current?.querySelectorAll('input[data-king-auth-password],input[autocomplete="one-time-code"]').forEach(input=>{input.value='';});setRevealed({});onSuccess?.(result?.data);}}catch(error){setFailed(true);setMessage(error.message||'Unable to complete request');onError?.(error);}finally{setBusy(false);}};
+  const execute=async(work,primary)=>{setBusy(true);setMessage('');setFailed(false);try{const result=await work(values());setMessage(result?.message||'Done.');if(primary){ref.current?.querySelectorAll('input[data-king-auth-password],input[autocomplete="one-time-code"]').forEach(input=>{input.value='';});setRevealed({});await onSuccess?.(result?.data);}}catch(error){setFailed(true);setMessage(error.message||'Unable to complete request');onError?.(error);}finally{setBusy(false);}};
   return h('form',{ref,className:'king-auth-form '+(className||''),style,onSubmit:event=>{event.preventDefault();execute(action,true);}},
     h('h2',null,title),
     h('fieldset',{disabled:busy,className:'king-auth-fields'},
@@ -57,6 +58,11 @@ export function SignIn(props={}){
   }});
 }
 export const SignInButton=SignIn;
+export function Reauthenticate({action,...props}={}){
+  const {reauthenticate}=useAuth();
+  if(!action)throw Error('Supply the protected action identifier');
+  return h(Form,{title:'Confirm your password',submitLabel:'Confirm password',...props,fields:[passwordField()],action:async data=>({data:await reauthenticate(action,data.password),message:'Password confirmed.'})});
+}
 export function SignUp(props={}){
   const {call}=useAuth();const [email,setEmail]=useState(null);
   if(email)return h(VerifyEmail,{email,onSuccess:props.onSuccess,onError:props.onError,className:props.className,style:props.style});
