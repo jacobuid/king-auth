@@ -1,6 +1,7 @@
 import { createAuthClient } from 'better-auth/client';
 import { usernameClient, emailOTPClient, phoneNumberClient } from 'better-auth/client/plugins';
 import { oauthProviderClient } from '@better-auth/oauth-provider/client';
+import {PASSWORD_PATTERN,PASSWORD_MESSAGE} from '../packages/king-auth/password-policy.mjs';
 
 const auth = createAuthClient({ plugins: [usernameClient(), emailOTPClient(), phoneNumberClient(), oauthProviderClient()] });
 const root = document.querySelector('#app');
@@ -10,7 +11,7 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&am
 const link = route => route + (location.search || '');
 const input = (name, label, type = 'text', placeholder = '', extra = '') => `<div class="field"><label for="${name}">${label}</label><input id="${name}" name="${name}" type="${type}" placeholder="${placeholder}" ${extra} required></div>`;
 const code = (name = 'otp', label = 'Verification code') => input(name, label, 'text', '6-digit code', 'inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code"');
-const password = (name = 'password', label = 'Password', fresh = false) => input(name, label, 'password', fresh ? 'At least 12 characters' : 'Enter your password', `autocomplete="${fresh ? 'new-password' : 'current-password'}" minlength="${fresh ? 12 : 1}" maxlength="128"`);
+const password = (name = 'password', label = 'Password', fresh = false) => input(name, label, 'password', fresh ? 'At least 8 characters' : 'Enter your password', `autocomplete="${fresh ? 'new-password' : 'current-password'}" minlength="${fresh ? 8 : 1}" maxlength="128" ${fresh?`pattern="${escape(PASSWORD_PATTERN)}" title="${escape(PASSWORD_MESSAGE)}"`:''}`);
 const submit = text => `<button class="wide" type="submit">${text} <span aria-hidden="true"></span></button>`;
 const notice = '<div class="status hidden" role="status"></div>';
 const config = await fetch('/api/config').then(r => r.json());

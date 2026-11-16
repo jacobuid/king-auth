@@ -1,6 +1,7 @@
 import {randomBytes,randomInt,createHash,createHmac,timingSafeEqual} from 'node:crypto';
 import {createAuthEndpoint,APIError} from 'better-auth/api';
 import {z} from 'zod';
+import {validNewPassword,PASSWORD_PATTERN,PASSWORD_MESSAGE} from '../packages/king-auth/password-policy.mjs';
 
 const digest=value=>createHash('sha256').update(value).digest('hex');
 const encode=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -91,12 +92,12 @@ export function abusePolicy(config,sender){
       accountSecurity:createAuthEndpoint('/account-security',{method:'GET',query:decision},async ctx=>{
         const user=await checked(ctx,ctx.query);
         const hidden=Object.entries(ctx.query).map(([name,value])=>'<input type="hidden" name="'+name+'" value="'+encode(value)+'">').join('');
-        const password=ctx.query.action==='password'?'<p><label>New password <input type="password" name="password" minlength="12" maxlength="128" autocomplete="new-password" required></label></p><p><label>Confirm new password <input type="password" name="confirmPassword" minlength="12" maxlength="128" autocomplete="new-password" required></label></p>':'';
+        const password=ctx.query.action==='password'?['password','confirmPassword'].map((name,index)=>'<p><label>'+(index?'Confirm new password':'New password')+' <input type="password" name="'+name+'" minlength="8" maxlength="128" pattern="'+encode(PASSWORD_PATTERN)+'" title="'+encode(PASSWORD_MESSAGE)+'" autocomplete="new-password" required></label></p>').join(''):'';
         return html('<h1>Confirm account security action</h1><p>'+encode(user.email)+'</p><p>Account ID: '+encode(user.id)+'</p><form method="post" action="/api/auth/account-security/confirm">'+hidden+password+'<button type="submit">'+({unlock:'Unlock account',delete:'Permanently delete account',password:'Set new password and unlock account'})[ctx.query.action]+'</button></form>');
       }),
-      confirmAccountSecurity:createAuthEndpoint('/account-security/confirm',{method:'POST',body:decision.extend({password:z.string().min(12).max(128).optional(),confirmPassword:z.string().optional()}),metadata:{allowedMediaTypes:['application/x-www-form-urlencoded','application/json']}},async ctx=>{
+      confirmAccountSecurity:createAuthEndpoint('/account-security/confirm',{method:'POST',body:decision.extend({password:z.string().min(8).max(128).optional(),confirmPassword:z.string().optional()}),metadata:{allowedMediaTypes:['application/x-www-form-urlencoded','application/json']}},async ctx=>{
         const user=await checked(ctx,ctx.body);
-        if(ctx.body.action==='password'&&(!ctx.body.password||ctx.body.password!==ctx.body.confirmPassword))throw new APIError('BAD_REQUEST',{message:'Enter matching new passwords of at least 12 characters.'});
+        if(ctx.body.action==='password'&&(!validNewPassword(ctx.body.password)||ctx.body.password!==ctx.body.confirmPassword))throw new APIError('BAD_REQUEST',{message:'Enter matching new passwords. '+PASSWORD_MESSAGE});
         const passwordHash=ctx.body.action==='password'?await ctx.context.password.hash(ctx.body.password):null;
         const changed=await ctx.context.adapter.update({model:'user',where:[{field:'id',value:user.id},{field:'lockReview',value:user.lockReview},{field:'signInLocked',value:true}],update:{lockReview:null,lockReviewExpiresAt:null,...(ctx.body.action==='unlock'?{signInLocked:false,failedSignIns:0}:{})}});
         if(!changed)throw new APIError('BAD_REQUEST',{message:'This account was already reviewed.'});

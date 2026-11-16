@@ -7,6 +7,7 @@ import { oauthProvider } from '@better-auth/oauth-provider';
 import { approvalPolicy } from './approval.mjs';
 import { abusePolicy } from './abuse.mjs';
 import {enforceBrowserSessionOrigin} from './session-origin.mjs';
+import {validNewPassword,PASSWORD_MESSAGE} from '../packages/king-auth/password-policy.mjs';
 
 export function createAuth({ config, database, sender }) {
   const isAdmin = user => Boolean(user && config.adminIds.includes(user.id) && user.emailVerified);
@@ -15,7 +16,7 @@ export function createAuth({ config, database, sender }) {
   return betterAuth({
     appName: 'King Auth', baseURL: config.baseURL, basePath: '/api/auth', secret: config.secret, database,
     trustedOrigins: [config.baseURL], disabledPaths: ['/token', '/change-email'],
-    emailAndPassword: { enabled: true, minPasswordLength: 12, maxPasswordLength: 128, requireEmailVerification: true, revokeSessionsOnPasswordReset: true },
+    emailAndPassword: { enabled: true, minPasswordLength: 8, maxPasswordLength: 128, requireEmailVerification: true, revokeSessionsOnPasswordReset: true },
     user:{additionalFields:{...approval.fields,...abuse.fields}},
     emailVerification: { autoSignInAfterVerification: !config.approval.required },
     // Remembered sessions have a fixed three-year ceiling, not an endless sliding expiry.
@@ -38,6 +39,8 @@ export function createAuth({ config, database, sender }) {
     hooks: { before: createAuthMiddleware(async ctx => {
       await enforceBrowserSessionOrigin(ctx,config);
       if(ctx.path==='/sign-up/email' && ctx.body?.website)throw new APIError('BAD_REQUEST',{message:'Unable to create account.'});
+      const passwordField=({'/sign-up/email':'password','/change-password':'newPassword','/set-password':'newPassword','/reset-password':'newPassword','/email-otp/reset-password':'password','/phone-number/reset-password':'newPassword'})[ctx.path];
+      if(passwordField&&!validNewPassword(ctx.body?.[passwordField]))throw new APIError('BAD_REQUEST',{code:'PASSWORD_POLICY',message:PASSWORD_MESSAGE});
       await abuse.before(ctx);
       if (!sender.emailEnabled && (ctx.path === '/sign-up/email' || ctx.path.startsWith('/email-otp/'))) {
         throw new APIError('SERVICE_UNAVAILABLE', { message: 'Email delivery is not configured yet. Contact the site owner.' });

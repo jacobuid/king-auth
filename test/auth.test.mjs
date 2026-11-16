@@ -28,7 +28,7 @@ async function fixture(baseURL='http://localhost:3000') {
     return {status:response.status,data,headers:response.headers};
   }
   async function verifiedUser() {
-    const data={name:'Alex Test',email:'alex@example.test',username:'alex_test',password:'A very long test password!'};
+    const data={name:'Alex Test',email:'alex@example.test',username:'alex_test',password:'A very long test password 1!'};
     const signup=await request('/sign-up/email',data);assert.equal(signup.status,200,JSON.stringify(signup.data));
     const otp=sent.at(-1).otp;
     const verified=await request('/email-otp/verify-email',{email:data.email,otp});assert.equal(verified.status,200,JSON.stringify(verified.data));
@@ -40,10 +40,10 @@ async function fixture(baseURL='http://localhost:3000') {
 test('verified identity, mutable username, code replay protection, and CSRF',async()=>{
   const f=await fixture();
   try{
-    const signup=await f.request('/sign-up/email',{name:'Alex',email:'alex@example.test',username:'alex_test',password:'A very long test password!'});
+    const signup=await f.request('/sign-up/email',{name:'Alex',email:'alex@example.test',username:'alex_test',password:'A very long test password 1!'});
     assert.equal(signup.status,200,JSON.stringify(signup.data));
     const id=signup.data.user.id;assert.match(id,/^[0-9a-f-]{36}$/);
-    const unverified=await f.request('/sign-in/username',{username:'alex_test',password:'A very long test password!'});assert.equal(unverified.status,403);
+    const unverified=await f.request('/sign-in/username',{username:'alex_test',password:'A very long test password 1!'});assert.equal(unverified.status,403);
     const otp=f.sent.at(-1).otp;
     const verified=await f.request('/email-otp/verify-email',{email:'alex@example.test',otp});assert.equal(verified.status,200,JSON.stringify(verified.data));
     assert.equal((await f.request('/email-otp/verify-email',{email:'alex@example.test',otp})).status,400);

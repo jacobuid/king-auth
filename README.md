@@ -4,6 +4,8 @@ Self-hosted authentication service and unstyled React library. All consuming web
 
 Signup asks for email and password, followed by an emailed verification code. The account component supports verified email changes, current/new/confirm password, session duration, reviewing sessions, and signing out individual or other sessions. SMS is not configured; phone and username are absent from the default React signup and account components. Existing optional username/phone server APIs remain for compatibility.
 
+New passwords must be **8–128 characters**, with at least one uppercase letter, lowercase letter, number, and special character (punctuation or symbol). This rule is enforced centrally and in signup/change/reset/owner recovery forms. Existing passwords can still be used to sign in; the rule applies when setting a new password.
+
 New signups require owner approval. Each request emails **jacobuid@gmail.com** with private approve/deny links. Each link opens a confirmation page; merely opening it cannot make a decision. Links expire after seven days and are single-use. A pending or denied account cannot sign in, even with a verified email. Existing accounts are preserved when this policy is introduced. Signup includes a hidden, autofill-disabled honeypot field checked on the server.
 
 After two incorrect passwords, another attempt requires a single-use code sent to that account's email. Codes expire in five minutes, allow three code guesses and have a one-minute resend cooldown. A code is consumed for one password attempt, even when that password is wrong. After five wrong passwords the account is locked, existing sessions are revoked, and the owner receives one notification for that lock event, with confirmation links to unlock, permanently delete, or set a new password. These links also expire after seven days and cannot be used for a different action. Successful sign-in resets the failed-password count. Self-service password reset does not bypass an owner lock.
@@ -28,7 +30,7 @@ Install the library directly from GitHub; no npm publication or manual tarball i
 npm install github:jacobuid/king-auth#sdk
 ```
 
-Imports use **`@jacobuid/king-auth`** as shown below. The automatically maintained `sdk` branch contains only the library, version 0.3.0; `main` contains the service and workspace, so use `#sdk` when installing. Commit your consuming project's `package-lock.json` to pin the exact Git commit. To update later, run the same install command again and commit the updated lockfile. For an explicitly fixed release, replace `sdk` with a full commit SHA from the **sdk branch**. Git must be available on the installing machine. The package is not published to the npm registry.
+Imports use **`@jacobuid/king-auth`** as shown below. The automatically maintained `sdk` branch contains only the library, version 0.3.1; `main` contains the service and workspace, so use `#sdk` when installing. Commit your consuming project's `package-lock.json` to pin the exact Git commit. To update later, run the same install command again and commit the updated lockfile. For an explicitly fixed release, replace `sdk` with a full commit SHA from the **sdk branch**. Git must be available on the installing machine. The package is not published to the npm registry.
 
 If your site has private API data, verify its bearer credential on that API's backend (Express example). This verifier does not install an auth adapter or handle signup/login:
 

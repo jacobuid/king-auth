@@ -25,7 +25,7 @@ test('browser-only forms work across origins with cookies omitted and separate s
   const host=()=>http.createServer((req,res)=>{if(req.url==='/app.js'){res.writeHead(200,{'Content-Type':'text/javascript'});return res.end(bundle.outputFiles[0].text);}res.writeHead(200,{'Content-Type':'text/html'});res.end('<div id="app"></div><script>globalThis.KING_AUTH_EXAMPLE_API='+JSON.stringify(apiUrl)+'</script><script type="module" src="/app.js"></script>');});
   const first=host(),second=host();await Promise.all([new Promise(resolve=>first.listen(0,'127.0.0.1',resolve)),new Promise(resolve=>second.listen(0,'127.0.0.1',resolve))]);
   const browser=await chromium.launch({channel:'chrome',headless:true,args:['--test-third-party-cookie-phaseout']});const context=await browser.newContext();const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
-  const email='static@example.test',password='Static browser password 123!';
+  const email='static@example.test',password='Abcd12!x';
   try{
     await context.addCookies([{name:'should-not-be-sent',value:'probe',url:apiUrl}]);
     await page.goto('http://localhost:'+first.address().port);

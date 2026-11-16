@@ -2,11 +2,13 @@
 
 Unstyled React authentication forms backed by the shared King Auth user pool. Install directly from GitHub:
 
+Password policy: 8–128 characters with uppercase, lowercase, a number, and a special character (punctuation/symbol). Server and new-password forms enforce the same rule; current-password/sign-in fields continue accepting existing passwords.
+
 ```sh
 npm install github:jacobuid/king-auth#sdk
 ```
 
-Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.3.0); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
+Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.3.1); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
 
 ## Optional backend adapter
 
