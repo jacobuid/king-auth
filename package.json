@@ -1,10 +1,10 @@
 {
   "name": "@jacobuid/king-auth",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Browser-only React authentication and optional backend helpers for King Auth",
   "type": "module",
   "exports": { ".": {"types":"./react.d.mts","default":"./react.mjs"}, "./server": {"types":"./server.d.mts","default":"./server.mjs"}, "./react": {"types":"./react.d.mts","default":"./react.mjs"} },
-  "files": ["server.mjs", "proxy.mjs", "browser.mjs", "routes.mjs", "password-policy.mjs", "react.mjs", "forms.mjs", "server.d.mts", "react.d.mts", "README.md"],
+  "files": ["server.mjs", "proxy.mjs", "browser.mjs", "routes.mjs", "password-policy.mjs", "password-toggle.mjs", "react.mjs", "forms.mjs", "server.d.mts", "react.d.mts", "README.md"],
   "engines": { "node": ">=24" },
   "dependencies": { "openid-client": "^6.9.0", "jose": "^6.2.17" },
   "peerDependencies": { "react": ">=18" },

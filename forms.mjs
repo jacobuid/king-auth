@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {createBrowserClient} from './browser.mjs';
 import {PASSWORD_PATTERN,PASSWORD_MESSAGE} from './password-policy.mjs';
+import {EYE_PATH,EYE_SLASH_PATH} from './password-toggle.mjs';
 
 const h = React.createElement;
 const Context = createContext(null);
@@ -34,13 +35,14 @@ function matched(data){if(data.newPassword!==data.confirmPassword)throw Error('N
 
 function Form({title,fields,action,submitLabel='Continue',actions=[],onSuccess,onError,className,style}){
   const prefix=useId();const ref=useRef();const [busy,setBusy]=useState(false);const [message,setMessage]=useState('');const [failed,setFailed]=useState(false);
+  const [revealed,setRevealed]=useState({});
   const values=()=>Object.fromEntries(new FormData(ref.current));
-  const execute=async(work,primary)=>{setBusy(true);setMessage('');setFailed(false);try{const result=await work(values());setMessage(result?.message||'Done.');if(primary){ref.current?.querySelectorAll('input[type="password"],input[autocomplete="one-time-code"]').forEach(input=>{input.value='';});onSuccess?.(result?.data);}}catch(error){setFailed(true);setMessage(error.message||'Unable to complete request');onError?.(error);}finally{setBusy(false);}};
+  const execute=async(work,primary)=>{setBusy(true);setMessage('');setFailed(false);try{const result=await work(values());setMessage(result?.message||'Done.');if(primary){ref.current?.querySelectorAll('input[data-king-auth-password],input[autocomplete="one-time-code"]').forEach(input=>{input.value='';});setRevealed({});onSuccess?.(result?.data);}}catch(error){setFailed(true);setMessage(error.message||'Unable to complete request');onError?.(error);}finally{setBusy(false);}};
   return h('form',{ref,className:'king-auth-form '+(className||''),style,onSubmit:event=>{event.preventDefault();execute(action,true);}},
     h('h2',null,title),
     h('fieldset',{disabled:busy,className:'king-auth-fields'},
       ...fields.map(({name,label,type='text',required=true,options,...props})=>h('div',{key:name,className:'king-auth-field'},
-        type==='honeypot'?h('div',{hidden:true,'aria-hidden':true},h('label',{htmlFor:prefix+name},label),h('input',{id:prefix+name,name,type:'text',tabIndex:-1,autoComplete:'off'})):type==='checkbox'?h('label',{htmlFor:prefix+name},h('input',{id:prefix+name,name,type,...props}),' '+label):h(React.Fragment,null,h('label',{htmlFor:prefix+name},label),type==='select'?h('select',{id:prefix+name,name,required,...props},options.map(([value,text])=>h('option',{key:value,value},text))):h('input',{id:prefix+name,name,type,required,...props})))),
+        type==='honeypot'?h('div',{hidden:true,'aria-hidden':true},h('label',{htmlFor:prefix+name},label),h('input',{id:prefix+name,name,type:'text',tabIndex:-1,autoComplete:'off'})):type==='checkbox'?h('label',{htmlFor:prefix+name},h('input',{id:prefix+name,name,type,...props}),' '+label):h(React.Fragment,null,h('label',{htmlFor:prefix+name},label),type==='select'?h('select',{id:prefix+name,name,required,...props},options.map(([value,text])=>h('option',{key:value,value},text))):type==='password'?h('span',{className:'king-auth-password'},h('input',{id:prefix+name,name,type:revealed[name]?'text':'password',required,...props,'data-king-auth-password':''}),h('button',{type:'button',className:'king-auth-password-toggle','aria-controls':prefix+name,'aria-label':(revealed[name]?'Hide ':'Show ')+label.toLowerCase(),'aria-pressed':!!revealed[name],onClick:()=>setRevealed(value=>({...value,[name]:!value[name]}))},h('svg',{className:'king-auth-password-icon',width:20,height:20,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,'aria-hidden':true,focusable:'false'},h('path',{d:EYE_PATH}),h('circle',{cx:12,cy:12,r:3}),revealed[name]?h('path',{d:EYE_SLASH_PATH}):null))):h('input',{id:prefix+name,name,type,required,...props})))),
       h('button',{type:'submit'},busy?'Working...':submitLabel),
       ...actions.map(item=>h('button',{key:item.label,type:'button',onClick:()=>execute(item.action,false)},item.label))),
     h('p',{className:failed?'king-auth-error':'king-auth-status',role:failed?'alert':'status','aria-live':'polite'},message));
