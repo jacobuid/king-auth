@@ -12,6 +12,7 @@ test('unstyled React signup, account controls, backend check and sign-out in Chr
     if(req.url==='/api/private')return false;
   });
   const browser=await chromium.launch({channel:'chrome',headless:true});const page=await browser.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.route('https://www.gravatar.com/avatar/**',route=>route.fulfill({status:404,body:''}));
   try{
     await page.goto(f.url);await page.getByRole('button',{name:'Create account',exact:true}).click();
     assert.equal(await page.locator('input[name=username],input[type=tel]').count(),0);

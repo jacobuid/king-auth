@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useId, useMem
 import {createBrowserClient} from './browser.mjs';
 import {PASSWORD_PATTERN,PASSWORD_MESSAGE} from './password-policy.mjs';
 import {EYE_PATH,EYE_SLASH_PATH} from './password-toggle.mjs';
+import {Avatar} from './avatar.mjs';
 
 const h = React.createElement;
 const Context = createContext(null);
@@ -110,14 +111,14 @@ export function Sessions({className,style}={}){
   const perform=async action=>{setBusy(true);setError('');try{await action();await reload();}catch(error){setError(error.message);}finally{setBusy(false);}};
   return h('section',{className,style},h('h2',null,'Signed-in sessions'),h('ul',null,items.map(item=>h('li',{key:item.id},item.current?'This session':item.userAgent||'Another session',' - expires '+new Date(item.expiresAt).toLocaleString(),' ',h('button',{type:'button',disabled:busy,onClick:()=>perform(()=>call('account/revoke-session',{sessionId:item.id}))},'Sign out')))),h('button',{type:'button',disabled:busy,onClick:()=>perform(()=>call('revoke-other-sessions',{}))},'Sign out other sessions'),error?h('p',{role:'alert'},error):null);
 }
-export function AccountSettings({className,style}={}){
+export function AccountSettings({className,style,avatar,gravatar=true,avatarSize=40,avatarClassName}={}){
   const {user,loading}=useAuth();if(loading)return h('p',null,'Checking session...');if(!user)return h(SignIn,{className,style});
-  return h('section',{className,style},h('p',null,user.email),h('p',null,'Account ID: ',user.id),h(ChangeEmail),h(ChangePassword),h(SessionSettings),h(Sessions),h(SignOut));
+  return h('section',{className,style},avatar??h(Avatar,{email:user.email,size:avatarSize,gravatar,className:avatarClassName}),h('p',null,user.email),h('p',null,'Account ID: ',user.id),h(ChangeEmail),h(ChangePassword),h(SessionSettings),h(Sessions),h(SignOut));
 }
 export const Account=AccountSettings;
 
 /** Unstyled profile disclosure with keyboard menu navigation and a native modal. */
-export function ProfileMenu({className,style,triggerClassName,menuClassName,dialogClassName,accountClassName,avatar,triggerLabel='Open profile menu'}={}){
+export function ProfileMenu({className,style,triggerClassName,menuClassName,dialogClassName,accountClassName,avatar,gravatar=true,avatarSize=40,avatarClassName,triggerLabel='Open profile menu'}={}){
   const {user,loading}=useAuth();const id=useId();
   const [open,setOpen]=useState(false),[accountOpen,setAccountOpen]=useState(false);
   const root=useRef(),trigger=useRef(),menu=useRef(),dialog=useRef(),firstItem=useRef(0);
@@ -148,16 +149,16 @@ export function ProfileMenu({className,style,triggerClassName,menuClassName,dial
     else if(event.key==='End')next=items.length-1;
     if(next!==undefined){event.preventDefault();items[next]?.focus();}
   };
-  const initials=(user.name||user.email||'?').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
+  const picture=avatar??h(Avatar,{email:user.email,size:avatarSize,gravatar,className:avatarClassName});
   return h('div',{ref:root,className:['king-auth-profile',className].filter(Boolean).join(' '),style},
-    h('button',{ref:trigger,id:id+'-trigger',type:'button',className:['king-auth-profile-trigger',triggerClassName].filter(Boolean).join(' '),'aria-label':triggerLabel,'aria-haspopup':'menu','aria-expanded':open,'aria-controls':open?id+'-menu':undefined,onClick:()=>{firstItem.current=0;setOpen(value=>!value);},onKeyDown:event=>{if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();firstItem.current=event.key==='ArrowUp'?-1:0;setOpen(true);}}},avatar??h('span',{'aria-hidden':true},initials)),
+    h('button',{ref:trigger,id:id+'-trigger',type:'button',className:['king-auth-profile-trigger',triggerClassName].filter(Boolean).join(' '),'aria-label':triggerLabel,'aria-haspopup':'menu','aria-expanded':open,'aria-controls':open?id+'-menu':undefined,onClick:()=>{firstItem.current=0;setOpen(value=>!value);},onKeyDown:event=>{if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();firstItem.current=event.key==='ArrowUp'?-1:0;setOpen(true);}}},picture),
     open?h('div',{className:['king-auth-profile-dropdown',menuClassName].filter(Boolean).join(' ')},
-      h('div',{className:'king-auth-profile-identity'},user.name?h('p',null,user.name):null,h('p',null,user.email)),
+      h('div',{className:'king-auth-profile-identity'},picture,user.name?h('p',null,user.name):null,h('p',null,user.email)),
       h('div',{ref:menu,id:id+'-menu',role:'menu','aria-labelledby':id+'-trigger',onKeyDown:navigate},
         h('button',{type:'button',role:'menuitem',tabIndex:-1,onClick:()=>{setOpen(false);setAccountOpen(true);}},'Manage account'),
         h(SignOut,{role:'menuitem',tabIndex:-1,onSuccess:()=>{setOpen(false);setAccountOpen(false);}}))):null,
     h('dialog',{ref:dialog,className:['king-auth-account-dialog',dialogClassName].filter(Boolean).join(' '),'aria-labelledby':id+'-title',onCancel:event=>{event.preventDefault();setAccountOpen(false);},onClose:()=>{setAccountOpen(false);trigger.current?.focus();}},
       h('h2',{id:id+'-title'},'Account'),
       h('button',{type:'button',className:'king-auth-account-close',autoFocus:true,'aria-label':'Close account',onClick:()=>setAccountOpen(false)},'Close'),
-      accountOpen?h(Account,{className:accountClassName}):null));
+      accountOpen?h(Account,{className:accountClassName,avatar,gravatar,avatarSize,avatarClassName}):null));
 }

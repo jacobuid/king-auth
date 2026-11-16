@@ -39,7 +39,8 @@ export function ChangeEmail(props?: FormProps): ReactElement;
 export function ChangePhone(props?: FormProps): ReactElement;
 export function ChangeUsername(props?: FormProps): ReactElement;
 export function ChangePassword(props?: FormProps): ReactElement;
-export function AccountSettings(props?: Pick<FormProps, 'className' | 'style'>): ReactElement;
+export interface AccountProps extends Pick<FormProps,'className'|'style'> {avatar?: ReactNode;gravatar?: boolean;avatarSize?: number;avatarClassName?: string}
+export function AccountSettings(props?: AccountProps): ReactElement;
 export const Account: typeof AccountSettings;
 export function SessionSettings(props?: FormProps): ReactElement;
 export function Sessions(props?: Pick<FormProps, 'className' | 'style'>): ReactElement;
@@ -53,9 +54,14 @@ export interface ProfileMenuProps {
   dialogClassName?: string;
   accountClassName?: string;
   avatar?: ReactNode;
+  gravatar?: boolean;
+  avatarSize?: number;
+  avatarClassName?: string;
   triggerLabel?: string;
 }
 export function ProfileMenu(props?: ProfileMenuProps): ReactElement | null;
+export function Avatar(props?: {email?: string;size?: number;gravatar?: boolean;alt?: string;className?: string;style?: CSSProperties}): ReactElement;
+export function gravatarUrl(email?: string,size?: number): Promise<string|null>;
 export function createBrowserClient(options?: {apiUrl?: string;fetch?: typeof globalThis.fetch}): {
   request(route: string,body?: Record<string,unknown>): Promise<any>;
   getToken(): string | null;

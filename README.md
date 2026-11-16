@@ -30,7 +30,7 @@ Install the library directly from GitHub; no npm publication or manual tarball i
 npm install github:jacobuid/king-auth#sdk
 ```
 
-Imports use **`@jacobuid/king-auth`** as shown below. The automatically maintained `sdk` branch contains only the library, version 0.3.2; `main` contains the service and workspace, so use `#sdk` when installing. Commit your consuming project's `package-lock.json` to pin the exact Git commit. To update later, run the same install command again and commit the updated lockfile. For an explicitly fixed release, replace `sdk` with a full commit SHA from the **sdk branch**. Git must be available on the installing machine. The package is not published to the npm registry.
+Imports use **`@jacobuid/king-auth`** as shown below. The automatically maintained `sdk` branch contains only the library, version 0.3.3; `main` contains the service and workspace, so use `#sdk` when installing. Commit your consuming project's `package-lock.json` to pin the exact Git commit. To update later, run the same install command again and commit the updated lockfile. For an explicitly fixed release, replace `sdk` with a full commit SHA from the **sdk branch**. Git must be available on the installing machine. The package is not published to the npm registry.
 
 If your site has private API data, verify its bearer credential on that API's backend (Express example). This verifier does not install an auth adapter or handle signup/login:
 
@@ -85,7 +85,20 @@ Every component is unstyled: semantic HTML, accessible labels/status messages, a
 
 Password fields include an eye button to show/hide that field independently. Buttons support keyboard use and accessible Show/Hide labels, never submit the form, and preserve the entered value. Successful submissions clear and hide password fields. Style `.king-auth-password`, `.king-auth-password-toggle`, and `.king-auth-password-icon` in the consuming site; no button theme is added.
 
-`ProfileMenu` provides a profile/initials button that opens a dropdown showing the user's name/email, **Manage account**, and **Sign out**. Manage account opens the existing `Account` component in a native modal dialog, including email/password changes and session controls. It supports keyboard menu navigation, outside-click dismissal, Escape, modal focus containment, and focus restoration. It renders nothing while signed out. Supply an `avatar` React node for your own icon/photo and use `triggerClassName`, `menuClassName`, `dialogClassName`, and `accountClassName` to style the parts. Style `.king-auth-account-dialog::backdrop` for your site's modal overlay. No branding, footer, or theme is added.
+`ProfileMenu` provides a profile button that opens a dropdown showing the user's name/email, **Manage account**, and **Sign out**. Avatars use Gravatar for the account email, with a local generic gray silhouette when no image exists or loading fails. Manage account opens the existing `Account` component in a native modal dialog, including email/password changes and session controls. It supports keyboard navigation, outside-click dismissal, Escape, modal focus containment, and focus restoration. It renders nothing while signed out. Use the class props to style the parts and `.king-auth-account-dialog::backdrop` for the overlay. No branding, footer, or button theme is added.
+
+Override the avatar or disable Gravatar:
+
+```jsx
+// Default: Gravatar, then generic silhouette.
+<ProfileMenu />
+// Generic silhouette only; no Gravatar requests.
+<ProfileMenu gravatar={false} avatarSize={48} avatarClassName="my-avatar" />
+// Custom content overrides Gravatar and the fallback everywhere in this menu/modal.
+<ProfileMenu avatar={<img src="/images/my-avatar.jpg" alt="" className="my-avatar" />} />
+```
+
+`Account` accepts the same `avatar`, `gravatar`, `avatarSize`, and `avatarClassName` props. Standalone `Avatar` is also exported. Gravatar receives a SHA-256 email hash, not the email text; requests go directly to Gravatar. Consumers with a restrictive CSP must allow `https://www.gravatar.com` in `img-src`, or disable/override Gravatar. See [avatar override and styling examples](packages/king-auth/README.md#avatar-overrides-and-styling).
 
 See [all components and session APIs](packages/king-auth/README.md) and [the browser-only example](examples/browser-only). `useAuth()` controls presentation; **protect backend data with the verifier's `getSession()`**. A frontend check alone is insufficient. Backend checks consult the central session database every time, so revocation takes effect on the next check. An unavailable identity service causes an error; do not treat that as authenticated.
 
