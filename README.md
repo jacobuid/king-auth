@@ -30,7 +30,7 @@ Install the library directly from GitHub; no npm publication or manual tarball i
 npm install github:jacobuid/king-auth#sdk
 ```
 
-Imports use **`@jacobuid/king-auth`** as shown below. The automatically maintained `sdk` branch contains only the library, version 0.3.1; `main` contains the service and workspace, so use `#sdk` when installing. Commit your consuming project's `package-lock.json` to pin the exact Git commit. To update later, run the same install command again and commit the updated lockfile. For an explicitly fixed release, replace `sdk` with a full commit SHA from the **sdk branch**. Git must be available on the installing machine. The package is not published to the npm registry.
+Imports use **`@jacobuid/king-auth`** as shown below. The automatically maintained `sdk` branch contains only the library, version 0.3.2; `main` contains the service and workspace, so use `#sdk` when installing. Commit your consuming project's `package-lock.json` to pin the exact Git commit. To update later, run the same install command again and commit the updated lockfile. For an explicitly fixed release, replace `sdk` with a full commit SHA from the **sdk branch**. Git must be available on the installing machine. The package is not published to the npm registry.
 
 If your site has private API data, verify its bearer credential on that API's backend (Express example). This verifier does not install an auth adapter or handle signup/login:
 
@@ -83,6 +83,8 @@ function App() {
 
 Every component is unstyled: semantic HTML, accessible labels/status messages, and class names; no CSS import, inline theme, or design dependency. Pass `className`/`style` or target `.king-auth-form`, `.king-auth-fields`, `.king-auth-field`, `.king-auth-error`, and `.king-auth-status`. `style` is applied only when you supply it.
 
+Password fields include an eye button to show/hide that field independently. Buttons support keyboard use and accessible Show/Hide labels, never submit the form, and preserve the entered value. Successful submissions clear and hide password fields. Style `.king-auth-password`, `.king-auth-password-toggle`, and `.king-auth-password-icon` in the consuming site; no button theme is added.
+
 `ProfileMenu` provides a profile/initials button that opens a dropdown showing the user's name/email, **Manage account**, and **Sign out**. Manage account opens the existing `Account` component in a native modal dialog, including email/password changes and session controls. It supports keyboard menu navigation, outside-click dismissal, Escape, modal focus containment, and focus restoration. It renders nothing while signed out. Supply an `avatar` React node for your own icon/photo and use `triggerClassName`, `menuClassName`, `dialogClassName`, and `accountClassName` to style the parts. Style `.king-auth-account-dialog::backdrop` for your site's modal overlay. No branding, footer, or theme is added.
 
 See [all components and session APIs](packages/king-auth/README.md) and [the browser-only example](examples/browser-only). `useAuth()` controls presentation; **protect backend data with the verifier's `getSession()`**. A frontend check alone is insufficient. Backend checks consult the central session database every time, so revocation takes effect on the next check. An unavailable identity service causes an error; do not treat that as authenticated.
@@ -128,6 +130,6 @@ Pushes to `main` deploy through [GitHub Actions](.github/workflows/deploy.yml): 
 
 Production secrets live only on the server: `.env`, `.database-password`, `.smtp-password`, and `.runtime-secret`, all private. Existing process environment wins over `.env`; deployment preserves these files. Never print them, put them into issues, or commit them. Preserve `.runtime-secret` through redeployments and back it up with the database.
 
-HostDive SMTP is configured and authenticated; verification/password flows were tested through its local mailbox. External deliverability still needs SPF/DKIM verification at authoritative Namecheap DNS and an external inbox test. SMS is disabled. Backups and monitoring need an operating policy before real users are onboarded. `/health` verifies initialized service/schema, not email delivery.
+HostDive SMTP is configured and authenticated. SPF/DKIM/DMARC and Custom MX are published at authoritative Namecheap DNS; the user confirmed the verification message arrived in Gmail Inbox and the owner-approval email arrived too. See [mail DNS and delivery notes](docs/EMAIL-DNS.md). SMS is disabled. Backups and monitoring still need an operating policy. `/health` verifies initialized service/schema, not email delivery.
 
 The backend uses Better Auth with its maintained OAuth provider and signed bearer plugins, self-hosted in this application. Browser mode contacts King Auth directly; proxy mode aggregates users behind each backend IP. The hosting runtime's socket-peer behavior still needs verification before scaling or modifying proxy/IP trust.

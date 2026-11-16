@@ -31,6 +31,15 @@ test('browser-only forms work across origins with cookies omitted and separate s
     await page.goto('http://localhost:'+first.address().port);
     await page.getByRole('button',{name:'Create account',exact:true}).click();
     await page.getByLabel('Email address',{exact:true}).fill(email);await page.getByLabel('Create password',{exact:true}).fill(password);await page.getByLabel('Confirm new password',{exact:true}).fill(password);await page.getByLabel('Stay signed in on this device').check();
+    await page.getByRole('button',{name:'Show create password',exact:true}).click();
+    assert.equal(await page.getByLabel('Create password',{exact:true}).getAttribute('type'),'text');
+    assert.equal(await page.getByLabel('Create password',{exact:true}).inputValue(),password);
+    assert.equal(await page.getByLabel('Confirm new password',{exact:true}).getAttribute('type'),'password');
+    assert.equal(sent.length,0);
+    await page.getByRole('button',{name:'Hide create password',exact:true}).focus();await page.keyboard.press('Space');
+    assert.equal(await page.getByLabel('Create password',{exact:true}).getAttribute('type'),'password');
+    await page.getByRole('button',{name:'Show confirm new password',exact:true}).click();
+    assert.equal(await page.getByLabel('Confirm new password',{exact:true}).getAttribute('type'),'text');
     await page.locator('form').getByRole('button',{name:'Create account',exact:true}).click();await page.getByLabel('Verification code').waitFor();await page.getByLabel('Verification code').fill(sent.at(-1).otp);await page.getByRole('button',{name:'Verify email',exact:true}).click();await page.getByTestId('signed-in').waitFor();
     assert.equal(await page.locator('[style]').count(),0);
     assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(key=>key.startsWith('king-auth:browser:')).length),1);

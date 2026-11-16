@@ -50,8 +50,20 @@ test('unstyled React signup, account controls, backend check and sign-out in Chr
     await page.getByLabel('Current password',{exact:true}).fill(f.user.password);
     await page.getByLabel('New password',{exact:true}).fill('A replacement password 123!');
     await page.getByLabel('Confirm new password',{exact:true}).fill('Mismatch password 123!');
+    await page.getByRole('button',{name:'Show current password',exact:true}).click();
+    assert.equal(await page.getByLabel('Current password',{exact:true}).getAttribute('type'),'text');
+    await page.getByRole('button',{name:'Show new password',exact:true}).click();
+    assert.equal(await page.getByLabel('New password',{exact:true}).getAttribute('type'),'text');
     await page.getByRole('button',{name:'Change password',exact:true}).click();
     await page.getByRole('alert').filter({hasText:'New passwords must match'}).waitFor();
+    await page.getByLabel('Confirm new password',{exact:true}).fill('A replacement password 123!');
+    await page.getByRole('button',{name:'Change password',exact:true}).click();
+    await page.getByRole('status').filter({hasText:'Password changed.'}).waitFor();
+    for(const label of ['Current password','New password','Confirm new password']){
+      assert.equal(await page.getByLabel(label,{exact:true}).inputValue(),'');
+      assert.equal(await page.getByLabel(label,{exact:true}).getAttribute('type'),'password');
+    }
+    f.user.password='A replacement password 123!';
     await page.getByLabel('Session duration on this device').selectOption('604800');
     await page.getByRole('button',{name:'Save session duration'}).click();
     await page.getByRole('status').filter({hasText:'Session duration saved'}).waitFor();

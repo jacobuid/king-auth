@@ -2,6 +2,7 @@ import { createAuthClient } from 'better-auth/client';
 import { usernameClient, emailOTPClient, phoneNumberClient } from 'better-auth/client/plugins';
 import { oauthProviderClient } from '@better-auth/oauth-provider/client';
 import {PASSWORD_PATTERN,PASSWORD_MESSAGE} from '../packages/king-auth/password-policy.mjs';
+import {mountPasswordToggles} from '../packages/king-auth/password-toggle.mjs';
 
 const auth = createAuthClient({ plugins: [usernameClient(), emailOTPClient(), phoneNumberClient(), oauthProviderClient()] });
 const root = document.querySelector('#app');
@@ -105,3 +106,4 @@ async function developers() {
   root.innerHTML = `<div class="service-auth"><section class="card"><h2>Register website</h2><form id="client-create">${input('client_name','Website name','text','My website')}${input('redirect','Exact HTTPS callback URL','url','https://example.com/auth/callback')}<div class="field"><label for="kind">Client type</label><select id="kind" name="kind"><option value="client_secret_basic">Server application</option><option value="none">Public browser application</option></select></div>${notice}${submit('Register website')}</form><pre id="credentials" class="hidden"></pre></section></div>`;
   form('client-create',async(data,el)=>{const uri=new URL(data.redirect);if(uri.protocol!=='https:')throw Error('Use an HTTPS callback URL.');const result=await call(auth.oauth2.createClient({client_name:data.client_name,redirect_uris:[uri.href],scope:'openid profile email',token_endpoint_auth_method:data.kind}));const output=document.querySelector('#credentials');output.textContent=JSON.stringify(result,null,2);output.classList.remove('hidden');status('Website registered. Store the client secret securely now; it is only shown once.',false,el);});
 }
+mountPasswordToggles(root);

@@ -29,7 +29,7 @@ await migrations.runMigrations();
 const handler = toNodeHandler(auth);
 const browserAPI=createBrowserAPI({auth,config});
 const shell = await readFile(new URL('../public/index.html', import.meta.url));
-const assets = new Map(await Promise.all(['app.css', 'app.js'].map(async name => [name, await readFile(new URL(`../public/${name}`, import.meta.url))])));
+const assets = new Map(await Promise.all(['app.css', 'app.js','password-toggle.js'].map(async name => [name, await readFile(new URL(`../public/${name}`, import.meta.url))])));
 function json(res, code, body) { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); }
 
 http.createServer(async (req, res) => {
