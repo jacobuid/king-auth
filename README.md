@@ -8,7 +8,7 @@ Password policy: 8–128 characters with uppercase, lowercase, a number, and a s
 npm install github:jacobuid/king-auth#sdk
 ```
 
-Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.3.1); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
+Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.3.2); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
 
 ## Optional backend adapter
 
@@ -68,6 +68,8 @@ For private API data, send `Authorization: Bearer ${getToken()}` from your UI to
 | `ProfileMenu` | Profile button, identity dropdown, Manage account modal, and sign-out |
 
 Forms accept `className`, `style`, `submitLabel`, `onSuccess(data)`, and `onError(error)`. Account/Sessions accept `className`/`style`. SignOut accepts `onSuccess()`/`onError(error)`. Components use semantic HTML and accessible labels/announcements, no CSS or inline theme; style `.king-auth-form`, `.king-auth-fields`, `.king-auth-field`, `.king-auth-error`, `.king-auth-status` in your app. Inputs/buttons inherit your site's CSS. Caller-provided `style` is optional.
+
+All password inputs have an unstyled eye toggle, independently showing/hiding the corresponding value. Show/Hide buttons have accessible labels, pressed state and input associations, work with keyboard controls, and do not submit forms. Successful submissions clear and hide password values. Style `.king-auth-password` (wrapper), `.king-auth-password-toggle` (button), and `.king-auth-password-icon` (SVG using currentColor).
 
 ## Profile dropdown and account popup
 
