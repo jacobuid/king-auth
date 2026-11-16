@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {createBrowserClient} from './browser.mjs';
+import {PASSWORD_PATTERN,PASSWORD_MESSAGE} from './password-policy.mjs';
 
 const h = React.createElement;
 const Context = createContext(null);
@@ -24,7 +25,7 @@ export function AuthProvider({ children, mode='browser',apiUrl='https://kingauth
 export function useAuth(){const value=useContext(Context);if(!value)throw Error('Wrap King Auth components in AuthProvider');return value;}
 export function useSession(){return useAuth();}
 const emailField = initial => ({name:'email',label:'Email address',type:'email',autoComplete:'email',defaultValue:initial||''});
-const passwordField = (name='password',label='Password',fresh=false) => ({name,label,type:'password',autoComplete:fresh?'new-password':'current-password',minLength:fresh?12:1,maxLength:128});
+const passwordField = (name='password',label='Password',fresh=false) => ({name,label,type:'password',autoComplete:fresh?'new-password':'current-password',minLength:fresh?8:1,maxLength:128,...(fresh?{pattern:PASSWORD_PATTERN,title:PASSWORD_MESSAGE}: {})});
 const otpField = (name='otp',label='Verification code')=>({name,label,inputMode:'numeric',pattern:'[0-9]{6}',autoComplete:'one-time-code',maxLength:6});
 const phoneField = initial=>({name:'phoneNumber',label:'Phone number',type:'tel',placeholder:'+15551234567',pattern:'\\+[1-9][0-9]{7,14}',defaultValue:initial||''});
 const rememberField={name:'rememberMe',label:'Stay signed in on this device for up to 3 years',type:'checkbox',required:false};
