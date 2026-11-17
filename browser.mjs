@@ -1,9 +1,11 @@
 import {AUTH_ROUTES} from './routes.mjs';
+import {browserAppInfo} from './app-info.mjs';
 /** Browser-only, cookie-free transport. Stored credentials are accessible to page JS. */
-export function createBrowserClient({apiUrl='https://kingauth.app/api/browser',fetch:send=globalThis.fetch}={}){
+export function createBrowserClient({apiUrl='https://kingauth.app/api/browser',appName,appPath,fetch:send=globalThis.fetch}={}){
   const endpoint=new URL(apiUrl);const local=['localhost','127.0.0.1','[::1]'].includes(endpoint.hostname);
   if(endpoint.username||endpoint.password||endpoint.search||endpoint.hash||(endpoint.protocol!=='https:'&&!(endpoint.protocol==='http:'&&local)))throw Error('Use an HTTPS King Auth API URL');
-  const base=endpoint.href.replace(/\/$/,'');const key='king-auth:browser:'+base;
+  const base=endpoint.href.replace(/\/$/,'');const appScope=browserAppInfo({appName,appPath});
+  const key='king-auth:browser:'+base+(appScope?.path&&appScope.path!=='/'?':app:'+appScope.path:'');
   let memory=null,memoryOnly=false,pendingRemember=false;
   function clear(){memory=null;for(const name of ['sessionStorage','localStorage'])try{globalThis[name]?.removeItem(key);}catch{}}
   function read(){
@@ -24,7 +26,11 @@ export function createBrowserClient({apiUrl='https://kingauth.app/api/browser',f
     const previous=read();const signingIn=route.startsWith('sign-in/')||route==='sign-up/email';
     const remember=signingIn?body?.rememberMe===true:route==='account/session-duration'?body?.persistent!==false:previous?.remember??pendingRemember;
     if(route==='get-session'&&!previous)return null;
-    const payload=route==='email-otp/verify-email'?{...body,rememberMe:remember}:body;
+    let payload=route==='email-otp/verify-email'?{...body,rememberMe:remember}:body;
+    if(signingIn||route==='email-otp/verify-email'||route==='phone-number/verify'){
+      const app=browserAppInfo({appName,appPath});
+      if(app)payload={...payload,app};
+    }
     const headers={...(body===undefined?{}:{'Content-Type':'application/json'}),...(previous?{Authorization:'Bearer '+previous.token}:{})};
     const response=await send(base+'/'+route,{method:body===undefined?'GET':'POST',credentials:'omit',headers,body:body===undefined?undefined:JSON.stringify(payload),redirect:'error',signal:AbortSignal.timeout(20000)});
     const data=await response.json();

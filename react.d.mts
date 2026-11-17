@@ -4,7 +4,7 @@ export interface BrowserSession {
   session: {id: string;createdAt: string;expiresAt: string};
 }
 type EmbeddedSession=BrowserSession;
-export interface AuthProviderProps { children?: ReactNode; mode?: 'browser'|'proxy'; apiUrl?: string; basePath?: string }
+export interface AuthProviderProps { children?: ReactNode; mode?: 'browser'|'proxy'; apiUrl?: string; basePath?: string; appName?: string; appPath?: string }
 export interface AuthState {
   user: EmbeddedSession['user'] | null;
   session: EmbeddedSession['session'] | null;
@@ -65,7 +65,7 @@ export interface ProfileMenuProps {
 export function ProfileMenu(props?: ProfileMenuProps): ReactElement | null;
 export function Avatar(props?: {email?: string;size?: number;gravatar?: boolean;alt?: string;className?: string;style?: CSSProperties}): ReactElement;
 export function gravatarUrl(email?: string,size?: number): Promise<string|null>;
-export function createBrowserClient(options?: {apiUrl?: string;fetch?: typeof globalThis.fetch}): {
+export function createBrowserClient(options?: {apiUrl?: string;appName?: string;appPath?: string;fetch?: typeof globalThis.fetch}): {
   request(route: string,body?: Record<string,unknown>): Promise<any>;
   getToken(): string | null;
   getSession(): Promise<EmbeddedSession | null>;
