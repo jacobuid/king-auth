@@ -36,6 +36,7 @@ http.createServer(async (req, res) => {
   // Never trust an IP header supplied by a browser. Passenger supplies the peer address.
   req.headers['x-king-auth-client-ip'] = req.socket.remoteAddress || '127.0.0.1';
   delete req.headers['x-king-auth-browser-origin'];
+  delete req.headers['x-king-auth-app'];
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Frame-Options', 'DENY');

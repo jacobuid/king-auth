@@ -96,3 +96,38 @@ test('account sessions identify each app and device across sites and preserve re
     assert.ok((await(await f.request('get-session',undefined,{origin:'https://king-sports.example',token:first})).json()).user);
   }finally{f.database.close();}
 });
+
+test('GitHub Pages sessions retain distinct app paths, names and PWA modes on the same origin',async()=>{
+  const f=await fixture();try{
+    const origin='https://jacobuid.github.io';await f.signup(origin);
+    const apps=[{path:'/king-sports/',displayMode:'standalone'},{path:'/king-comics/',displayMode:'browser',deviceHints:{multiTouch:true}},{path:'/king-videos/',name:'Kingflix',displayMode:'standalone'}];
+    let token;
+    for(const app of apps){
+      const response=await f.request('sign-in/email',{email:f.user.email,password:f.user.password,app},{origin,headers:{'User-Agent':app.deviceHints?'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Version/18.0 Safari/605.1':'Mozilla/5.0 (iPhone) Mobile','x-king-auth-app':encodeURIComponent(JSON.stringify({path:'/spoof/'}))}});
+      assert.equal(response.status,200,await response.clone().text());token=(await response.json()).browserSession.token;
+    }
+    const response=await f.request('account/sessions',undefined,{origin,token});assert.equal(response.status,200);
+    const sessions=await response.json();assert.equal(sessions.length,4);
+    for(const [index,app] of apps.entries()){
+      const session=sessions.find(item=>item.appPath===app.path);
+      assert.ok(session);assert.equal(session.appOrigin,origin);assert.equal(session.appName,['King Sports','King Comics','Kingflix'][index]);
+      assert.equal(session.device,index===1?'Tablet':'Phone');assert.equal(session.deviceName,index===1?'iPad':'iPhone');assert.equal(session.appType,app.displayMode==='standalone'?'PWA':'Browser');
+      assert.equal(session.token,undefined);
+    }
+    const legacy=sessions.find(item=>item.appPath===null);assert.ok(legacy);assert.equal(legacy.appType,null);
+    const current=sessions.find(item=>item.current);assert.equal(current.appName,'Kingflix');
+    const revoked=sessions.find(item=>item.appPath==='/king-sports/');
+    assert.equal((await f.request('account/revoke-session',{sessionId:revoked.id},{origin,token})).status,200);
+    const remaining=await(await f.request('account/sessions',undefined,{origin,token})).json();assert.equal(remaining.length,3);
+  }finally{f.database.close();}
+});
+
+test('invalid app metadata is rejected before issuing a session',async()=>{
+  const f=await fixture();try{
+    for(const app of [{path:'//evil.example/'},{path:'/king-sports/?token=secret'},{name:'x'.repeat(81)},{displayMode:'native'}]){
+      assert.equal((await f.request('sign-up/email',{...f.user,app})).status,400);
+    }
+    assert.equal(f.database.prepare('SELECT COUNT(*) AS count FROM session').get().count,0);
+    assert.equal(f.sent.length,0);
+  }finally{f.database.close();}
+});

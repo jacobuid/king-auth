@@ -11,6 +11,7 @@ import {validNewPassword,PASSWORD_MESSAGE} from '../packages/king-auth/password-
 import {reauthenticationPlugin} from './reauthentication.mjs';
 import {sessionDetails} from './session-details.mjs';
 import {createSessionLocator} from './session-location.mjs';
+import {normalizeAppInfo} from '../packages/king-auth/app-info.mjs';
 
 export function createAuth({ config, database, sender, locateSession=createSessionLocator({enabled:config.sessionGeolocation===true}) }) {
   const isAdmin = user => Boolean(user && config.adminIds.includes(user.id) && user.emailVerified);
@@ -25,13 +26,18 @@ export function createAuth({ config, database, sender, locateSession=createSessi
     // Remembered sessions have a fixed three-year ceiling, not an endless sliding expiry.
     // HTTP cookies are limited to 400 days by the serializer/browser. The database
     // is authoritative and may retain remembered sessions for up to three years.
-    session: { expiresIn: 400 * 86400, disableSessionRefresh: true, freshAge: 600, storeSessionInDatabase: true,additionalFields:{browserOrigin:{type:'string',required:false,input:false,returned:false}} },
+    session: { expiresIn: 400 * 86400, disableSessionRefresh: true, freshAge: 600, storeSessionInDatabase: true,additionalFields:{browserOrigin:{type:'string',required:false,input:false,returned:false},browserAppPath:{type:'string',required:false,input:false,returned:false},browserAppName:{type:'string',required:false,input:false,returned:false},browserDisplayMode:{type:'string',required:false,input:false,returned:false},browserDeviceHints:{type:'string',required:false,input:false,returned:false}} },
     databaseHooks: {user:{create:approval.userCreate},session:{create:{before:async(session,ctx)=>{
       await approval.checkSession(session.userId,ctx);
       await abuse.checkSession(session.userId,ctx);
       const created=new Date(session.createdAt).getTime();
       const remembered=new Date(session.expiresAt).getTime()-created>2*86400000;
-      return {data:{...session,browserOrigin:ctx?.headers?.get('x-king-auth-browser-origin')||null,expiresAt:new Date(created+(remembered?3*365*86400000:86400000))}};
+      const browserOrigin=ctx?.headers?.get('x-king-auth-browser-origin')||null;
+      let app=null;
+      if(browserOrigin&&ctx?.headers?.get('x-king-auth-app')){
+        try{app=normalizeAppInfo(browserOrigin,JSON.parse(decodeURIComponent(ctx.headers.get('x-king-auth-app'))));}catch{}
+      }
+      return {data:{...session,browserOrigin,browserAppPath:app?.path||null,browserAppName:app?.name||null,browserDisplayMode:app?.displayMode||null,browserDeviceHints:app?.deviceHints?JSON.stringify(app.deviceHints):null,expiresAt:new Date(created+(remembered?3*365*86400000:86400000))}};
     }}}},
     advanced: { useSecureCookies: config.production, database: { generateId: 'uuid' }, ipAddress: { ipAddressHeaders: ['x-king-auth-client-ip'] } },
     rateLimit: { enabled: true, storage: 'database', window: 60, max: 60, customRules: {

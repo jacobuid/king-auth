@@ -53,7 +53,19 @@ For private API data, send `Authorization: Bearer ${getToken()}` from your UI to
 
 The standalone `/verifier` export uses web APIs without Node dependencies and supports Cloudflare Workers. Both session verification and reauthentication use manual redirects and reject redirect responses without following them. The existing `/server` export also provides the same verifier.
 
-Signed-in sessions show the app name (derived from its saved hostname), hostname, device category, expiry, and a sign-out button. The current session is marked. `account/sessions` returns `appName`, `appOrigin`, and `device` alongside the existing session fields. Names and device categories are display hints: computers cannot reliably be identified as laptops versus desktops. Sessions without a saved app origin display “Unknown app”; the currently viewed app is never assumed to own those sessions.
+Signed-in sessions show the app name, hostname/project path, readable device, PWA or browser label, expiry, and a sign-out button. The current session is marked. `account/sessions` returns `appName`, `appOrigin`, `appPath`, `device` (Phone/Tablet/Computer/Unknown device), `deviceName` (such as iPhone/iPad/Android phone/Mac/Windows computer), `osName`, `browserName`, and `appType` (PWA/Browser/null) alongside existing fields. Labels are best-effort display hints, never authorization checks. Old sessions can get readable device/browser labels from their saved user-agent, but have no saved path or PWA mode. Sessions without a saved origin display “Unknown app”.
+
+Fresh browser sign-ins automatically identify GitHub Pages project paths: `https://jacobuid.github.io/king-sports/` becomes “King Sports”, and `/king-comics/` becomes “King Comics”. Nested routes, queries and fragments are not captured. Other hosts default to `/`; configure `appPath` when multiple apps share a host. Set `appName` to use a custom display name:
+
+```jsx
+<AuthProvider appName="Kingflix" appPath="/king-videos/">
+  <App />
+</AuthProvider>
+```
+
+`createBrowserClient({appName, appPath})` accepts the same browser-mode options. Credentials are stored separately per app path, so upgrading GitHub Pages apps requires a fresh sign-in rather than guessing which app owns a previously shared credential. Path separation organizes browser storage; apps on the same origin still share the browser's security boundary, and backend verification continues to enforce the origin. Reinstall/update the SDK in each consuming app and rebuild to send the new metadata.
+
+PWA mode is captured at sign-in through standalone display mode (including iOS home-screen mode). It describes how that session started; it does not detect every installed app or track later window changes. Coarse multi-touch and supported platform/mobile client hints improve classification, including iPads that report a Mac user-agent. Raw screen dimensions, hardware models, fingerprints and personal device names are not collected. Laptops and desktops remain grouped as computers.
 
 The session list also shows an approximate city/state such as “Near Tyler, TX”. `account/sessions` includes `location: {city, region, regionCode, countryCode, label}` or `null` when unavailable. This describes the session's saved connection IP, not its live position. No GPS permission is requested, and location has no effect on authorization. Cellular networks, VPNs and relays can place the connection in a different city.
 

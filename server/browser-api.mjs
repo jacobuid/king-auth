@@ -1,4 +1,5 @@
 import {AUTH_ROUTES,publicData} from '../packages/king-auth/routes.mjs';
+import {normalizeAppInfo} from '../packages/king-auth/app-info.mjs';
 
 const anonymous=new Set(['sign-in/email','sign-in/username','sign-in/phone-number','sign-up/email','sign-in-code/send','email-otp/send-verification-otp','email-otp/verify-email','email-otp/request-password-reset','email-otp/reset-password','phone-number/send-otp','phone-number/request-password-reset','phone-number/reset-password']);
 function validOrigin(origin){
@@ -50,6 +51,10 @@ export function createBrowserAPI({auth,config}){
         if(!body||typeof body!=='object'||Array.isArray(body))return json(400,{message:'Expected an object'});
       }
       const remember=body?.rememberMe===true;
+      if(body?.app!==undefined&&(route.startsWith('sign-in/')||route==='sign-up/email'||route==='email-otp/verify-email'||route==='phone-number/verify')){
+        let app;try{app=normalizeAppInfo(origin,body.app);}catch{return json(400,{message:'Use a valid app name and same-origin path.'});}
+        headers.set('x-king-auth-app',encodeURIComponent(JSON.stringify(app)));
+      }
       if(body)body=Object.fromEntries(rule[1].filter(key=>body[key]!==undefined&&key!=='persistent').map(key=>[key,body[key]]));
       if(route==='reauthenticate'||route==='reauthentication/consume')body.origin=origin;
       if(route==='change-password')body.revokeOtherSessions=true;
