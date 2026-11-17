@@ -53,6 +53,12 @@ For private API data, send `Authorization: Bearer ${getToken()}` from your UI to
 
 The standalone `/verifier` export uses web APIs without Node dependencies and supports Cloudflare Workers. Both session verification and reauthentication use manual redirects and reject redirect responses without following them. The existing `/server` export also provides the same verifier.
 
+Signed-in sessions show the app name (derived from its saved hostname), hostname, device category, expiry, and a sign-out button. The current session is marked. `account/sessions` returns `appName`, `appOrigin`, and `device` alongside the existing session fields. Names and device categories are display hints: computers cannot reliably be identified as laptops versus desktops. Sessions without a saved app origin display “Unknown app”; the currently viewed app is never assumed to own those sessions.
+
+The session list also shows an approximate city/state such as “Near Tyler, TX”. `account/sessions` includes `location: {city, region, regionCode, countryCode, label}` or `null` when unavailable. This describes the session's saved connection IP, not its live position. No GPS permission is requested, and location has no effect on authorization. Cellular networks, VPNs and relays can place the connection in a different city.
+
+Production uses server-side HTTPS lookups through [ipwho.is](https://ipwhois.io/documentation), sharing only the saved public IP with that provider. Successful lookups are cached in memory for 24 hours; failures for five minutes. Private addresses are skipped. Lookup failures never block session controls. Set `SESSION_GEOLOCATION=false` on the King Auth server to disable external lookups (disabled by default outside production). The response contains no IP address or coordinates. Existing sessions can receive a label without signing in again if they have a saved public IP.
+
 ```js
 import { createKingAuthVerifier } from '@jacobuid/king-auth/verifier';
 
