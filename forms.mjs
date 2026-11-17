@@ -3,6 +3,7 @@ import {createBrowserClient} from './browser.mjs';
 import {PASSWORD_PATTERN,PASSWORD_MESSAGE} from './password-policy.mjs';
 import {EYE_PATH,EYE_SLASH_PATH} from './password-toggle.mjs';
 import {Avatar} from './avatar.mjs';
+import {SessionDetails} from './session-view.mjs';
 
 const h = React.createElement;
 const Context = createContext(null);
@@ -115,7 +116,7 @@ export function Sessions({className,style}={}){
   const reload=useCallback(async()=>setItems(await call('account/sessions')),[call]);
   useEffect(()=>{reload().catch(error=>setError(error.message));},[reload,session?.id]);
   const perform=async action=>{setBusy(true);setError('');try{await action();await reload();}catch(error){setError(error.message);}finally{setBusy(false);}};
-  return h('section',{className,style},h('h2',null,'Signed-in sessions'),h('ul',null,items.map(item=>h('li',{key:item.id},h('span',{title:item.appOrigin?item.appOrigin+(item.appPath||''):undefined},item.appName||'Unknown app'),item.appOrigin?' ('+new URL(item.appOrigin).host+(item.appPath&&item.appPath!=='/'?item.appPath:'')+')':'',' - '+(item.deviceName||item.device||'Unknown device'),item.appType==='PWA'?' - PWA':item.browserName?' - '+item.browserName:item.appType?' - '+item.appType:'',item.current?' (This session)':'',item.location?.label?' - Near '+item.location.label:' - Location unavailable',' - expires '+new Date(item.expiresAt).toLocaleString(),' ',h('button',{type:'button',disabled:busy,onClick:()=>perform(()=>call('account/revoke-session',{sessionId:item.id}))},'Sign out')))),h('button',{type:'button',disabled:busy,onClick:()=>perform(()=>call('revoke-other-sessions',{}))},'Sign out other sessions'),error?h('p',{role:'alert'},error):null);
+  return h('section',{className,style},h('h2',null,'Signed-in sessions'),h('ul',null,items.map(item=>h(SessionDetails,{key:item.id,item,busy,onSignOut:()=>perform(()=>call('account/revoke-session',{sessionId:item.id}))}))),h('button',{type:'button',disabled:busy,onClick:()=>perform(()=>call('revoke-other-sessions',{}))},'Sign out other sessions'),error?h('p',{role:'alert'},error):null);
 }
 export function AccountSettings({className,style,avatar,gravatar=true,avatarSize=40,avatarClassName}={}){
   const {user,loading}=useAuth();if(loading)return h('p',null,'Checking session...');if(!user)return h(SignIn,{className,style});
