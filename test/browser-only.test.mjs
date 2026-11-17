@@ -49,6 +49,13 @@ test('browser-only forms work across origins with cookies omitted and separate s
     await other.getByLabel('Email address',{exact:true}).fill(email);await other.getByLabel('Password',{exact:true}).fill(password);await other.locator('form').getByRole('button',{name:'Sign in',exact:true}).click();await other.getByTestId('signed-in').waitFor();
     await other.getByRole('button',{name:'Open profile menu'}).click();await other.getByRole('menuitem',{name:'Manage account'}).click();
     const modal=other.getByRole('dialog',{name:'Account',exact:true});await modal.waitFor();
+    await modal.locator('.king-auth-session-current').waitFor();
+    const deviceRows=modal.locator('.king-auth-session');assert.equal(await deviceRows.count(),2);
+    assert.ok((await deviceRows.first().textContent()).includes('This device'));
+    for(const text of await deviceRows.allTextContents()){
+      assert.match(text,/Chrome [\d.]+/);assert.ok(text.includes('127.0.0.1'));assert.ok(text.includes('Last active:'));assert.ok(!text.includes('Last active: unavailable'));
+      assert.ok(text.includes('Signed in:'));assert.ok(text.includes('Expires:'));
+    }
     await modal.getByLabel('Session duration on this device').selectOption('604800');await modal.getByRole('button',{name:'Save session duration'}).click();await modal.getByRole('status').filter({hasText:'Session duration saved'}).waitFor();
     await other.keyboard.press('Escape');await other.reload();await other.getByTestId('signed-in').waitFor();
     await page.getByRole('button',{name:'Open profile menu'}).click();await page.getByRole('menuitem',{name:'Sign out',exact:true}).click();await page.getByRole('heading',{name:'Sign in',exact:true}).waitFor();

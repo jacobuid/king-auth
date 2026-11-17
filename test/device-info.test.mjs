@@ -39,3 +39,20 @@ test('only coarse capabilities and supported low entropy platform hints are capt
   assert.deepEqual(normalizeAppInfo('https://example.test',{deviceHints:{multiTouch:true,screenWidth:1234,model:'ignored'}}).deviceHints,{multiTouch:true});
   for(const deviceHints of [{multiTouch:'yes'},{mobile:1},{platform:'Unknown platform'},null,[]])assert.throws(()=>normalizeAppInfo('https://example.test',{deviceHints}));
 });
+
+test('browser versions come from the matching browser token, not its compatibility tokens',()=>{
+  for(const [ua,browserName,browserVersion] of [
+    ['Mozilla/5.0 Chrome/157.0.0.0 Safari/537.36','Chrome','157.0.0.0'],
+    ['Mozilla/5.0 Chrome/157.0.0.0 Safari/537.36 Edg/156.0.2.1','Edge','156.0.2.1'],
+    ['Mozilla/5.0 Chrome/130.0 Safari/537.36 OPR/114.0','Opera','114.0'],
+    ['Mozilla/5.0 Chrome/130.0 Safari/537.36 SamsungBrowser/27.0','Samsung Internet','27.0'],
+    ['Mozilla/5.0 Version/26.6 Safari/605.1.15','Safari','26.6'],
+    ['Mozilla/5.0 CriOS/157.0.4.2 Mobile Safari/604.1','Chrome','157.0.4.2'],
+    ['Mozilla/5.0 FxiOS/134.1 Mobile Safari/604.1','Firefox','134.1'],
+    ['Mozilla/5.0 EdgiOS/134.2 Mobile Safari/604.1','Edge','134.2'],
+    ['Mozilla/5.0 Safari/605.1.15','Safari',null],
+    ['',null,null],
+  ]){
+    const details=deviceInfo(ua);assert.equal(details.browserName,browserName);assert.equal(details.browserVersion,browserVersion);
+  }
+});

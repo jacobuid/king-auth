@@ -90,7 +90,7 @@ test('account sessions identify each app and device across sites and preserve re
     const current=sessions.find(item=>item.current),other=sessions.find(item=>!item.current);
     assert.equal(current.appName,'King Sports');assert.equal(current.appOrigin,'https://king-sports.example');
     assert.equal(other.appName,'Other App');assert.equal(other.appOrigin,'https://other-app.example');assert.equal(other.device,'Phone');
-    for(const item of sessions){assert.ok(item.expiresAt);assert.equal(item.token,undefined);assert.equal(item.ipAddress,undefined);assert.deepEqual(item.location,location);}
+    for(const item of sessions){assert.ok(item.expiresAt);assert.equal(item.token,undefined);assert.equal(item.ipAddress,'127.0.0.1');assert.deepEqual(item.location,location);assert.ok(item.lastActiveAt);}
     assert.equal((await f.request('account/revoke-session',{sessionId:other.id},{origin:'https://king-sports.example',token:first})).status,200);
     assert.equal(await(await f.request('get-session',undefined,{origin:'https://other-app.example',token:second})).json(),null);
     assert.ok((await(await f.request('get-session',undefined,{origin:'https://king-sports.example',token:first})).json()).user);
@@ -129,5 +129,46 @@ test('invalid app metadata is rejected before issuing a session',async()=>{
     }
     assert.equal(f.database.prepare('SELECT COUNT(*) AS count FROM session').get().count,0);
     assert.equal(f.sent.length,0);
+  }finally{f.database.close();}
+});
+
+test('successful session checks record activity without changing credentials or fixed expiry',async()=>{
+  const f=await fixture();try{
+    const token=(await f.signup()).browserSession.token;
+    f.database.prepare('UPDATE session SET lastActiveAt=NULL').run();
+    const before=f.database.prepare('SELECT * FROM session').get();
+    const checked=await f.request('get-session',undefined,{token});assert.equal(checked.status,200);
+    const payload=await checked.json();assert.equal(payload.session.lastActiveAt,undefined);assert.equal(payload.session.ipAddress,undefined);
+    const active=f.database.prepare('SELECT * FROM session').get();
+    assert.ok(new Date(active.lastActiveAt).getTime()>=Date.now()-5000);
+    assert.deepEqual({...active,lastActiveAt:before.lastActiveAt,updatedAt:before.updatedAt},{...before});
+    await f.request('get-session',undefined,{token});
+    assert.equal(f.database.prepare('SELECT lastActiveAt FROM session').get().lastActiveAt,active.lastActiveAt);
+    const stale=new Date(Date.now()-120000).toISOString();f.database.prepare('UPDATE session SET lastActiveAt=?').run(stale);
+    assert.equal(await(await f.request('get-session',undefined,{token,origin:'https://wrong.example'})).json(),null);
+    assert.equal(await(await f.request('get-session',undefined,{token:'invalid.token'})).json(),null);
+    assert.equal(f.database.prepare('SELECT lastActiveAt FROM session').get().lastActiveAt,stale);
+    await f.request('get-session',undefined,{token});
+    const latest=f.database.prepare('SELECT * FROM session').get();assert.ok(latest.lastActiveAt>stale);
+    const listed=await(await f.request('account/sessions',undefined,{token})).json();
+    assert.equal(new Date(listed[0].lastActiveAt).getTime(),new Date(latest.lastActiveAt).getTime());
+    assert.equal(listed[0].ipAddress,'127.0.0.1');assert.equal(latest.token,before.token);assert.equal(latest.expiresAt,before.expiresAt);
+  }finally{f.database.close();}
+});
+
+test('session network and activity metadata are visible only to the authenticated account owner',async()=>{
+  const f=await fixture();try{
+    const token=(await f.signup()).browserSession.token;
+    const own=await(await f.request('account/sessions',undefined,{token})).json();
+    assert.equal((await f.request('account/sessions')).status,401);
+    assert.equal((await f.request('account/sessions',undefined,{token,origin:'https://wrong.example'})).status,401);
+    const email='other-owner@example.test';
+    assert.equal((await f.request('sign-up/email',{...f.user,email})).status,200);
+    const verified=await f.request('email-otp/verify-email',{email,otp:f.sent.at(-1).otp});assert.equal(verified.status,200);
+    const otherToken=(await verified.json()).browserSession.token;
+    const others=await(await f.request('account/sessions',undefined,{token:otherToken})).json();assert.equal(others.length,1);
+    assert.ok(others.every(item=>!own.some(session=>session.id===item.id)));
+    assert.equal((await f.request('account/revoke-session',{sessionId:own[0].id},{token:otherToken})).status,404);
+    for(const item of [...own,...others]){assert.equal(item.token,undefined);assert.equal(item.ipAddress,'127.0.0.1');assert.ok(item.lastActiveAt);}
   }finally{f.database.close();}
 });

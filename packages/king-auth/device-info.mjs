@@ -14,5 +14,7 @@ export function deviceInfo(userAgent='',hints={}){
   const osName=ipad?'iPadOS':iphone||platform==='iOS'?'iOS':android?'Android':/Windows Phone/i.test(ua)?'Windows Phone':windows?'Windows':chromeOS?'Chrome OS':mac?'macOS':linux?'Linux':null;
   const deviceName=ipad?'iPad':/iPhone/i.test(ua)?'iPhone':/iPod/i.test(ua)?'iPod':android?(tablet?'Android tablet':'Android phone'):/Windows Phone/i.test(ua)?'Windows phone':windows?'Windows computer':chromeOS?'Chromebook':mac?'Mac':linux?'Linux computer':device;
   const browserName=/Edg(?:e|A|iOS)?\//i.test(ua)?'Edge':/OPR\/|Opera|OPiOS\//i.test(ua)?'Opera':/SamsungBrowser\//i.test(ua)?'Samsung Internet':/Firefox\/|FxiOS\//i.test(ua)?'Firefox':/Chrome\/|Chromium\/|CriOS\//i.test(ua)?'Chrome':/Safari\//i.test(ua)?'Safari':null;
-  return {device,deviceName,osName,browserName};
+  const versionPattern=({'Edge':/Edg(?:e|A|iOS)?\/([\d.]+)/i,'Opera':/(?:OPR|OPiOS|Version)\/([\d.]+)/i,'Samsung Internet':/SamsungBrowser\/([\d.]+)/i,'Firefox':/(?:Firefox|FxiOS)\/([\d.]+)/i,'Chrome':/(?:Chrome|Chromium|CriOS)\/([\d.]+)/i,'Safari':/Version\/([\d.]+)/i})[browserName];
+  const browserVersion=versionPattern?.exec(ua)?.[1]||null;
+  return {device,deviceName,osName,browserName,browserVersion};
 }

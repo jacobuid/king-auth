@@ -22,6 +22,13 @@ test('MySQL production adapter migrates and persists verified identities', { ski
     const signed=await auth.handler(new Request(config.baseURL+'/api/auth/sign-in/username',{method:'POST',headers:{Origin:config.baseURL,'Content-Type':'application/json'},body:JSON.stringify({username:'mysql_test',password:'A MySQL test password 123!'})}));
     assert.equal(signed.status,200);const bearer=signed.headers.get('set-auth-token');assert.ok(bearer);
     const reauthHeaders={Origin:config.baseURL,'Content-Type':'application/json',Authorization:'Bearer '+bearer};
+    const checked=await auth.handler(new Request(config.baseURL+'/api/auth/get-session',{headers:reauthHeaders}));
+    assert.equal(checked.status,200);const checkedSession=(await checked.json()).session;
+    const [beforeActivity]=await database.execute('SELECT expiresAt FROM session WHERE id=?',[checkedSession.id]);
+    await database.execute('UPDATE session SET lastActiveAt=NULL WHERE id=?',[checkedSession.id]);
+    assert.equal((await auth.handler(new Request(config.baseURL+'/api/auth/get-session',{headers:reauthHeaders}))).status,200);
+    const [afterActivity]=await database.execute('SELECT expiresAt,lastActiveAt FROM session WHERE id=?',[checkedSession.id]);
+    assert.ok(afterActivity[0].lastActiveAt);assert.equal(afterActivity[0].expiresAt.getTime(),beforeActivity[0].expiresAt.getTime());
     const issued=await auth.handler(new Request(config.baseURL+'/api/auth/reauthenticate',{method:'POST',headers:reauthHeaders,body:JSON.stringify({origin:'https://mysql-site.example',action:'settings:change',password:'A MySQL test password 123!'})}));
     assert.equal(issued.status,200);const proof=await issued.json();
     const consume=()=>auth.handler(new Request(config.baseURL+'/api/auth/reauthentication/consume',{method:'POST',headers:reauthHeaders,body:JSON.stringify({origin:'https://mysql-site.example',action:'settings:change',proof:proof.proof})}));

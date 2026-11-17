@@ -1,4 +1,5 @@
 import {deviceInfo} from '../packages/king-auth/device-info.mjs';
+import {isIP} from 'node:net';
 
 /** Display hints only; session ownership and authorization use the stored IDs. */
 export function sessionDetails(session){
@@ -20,5 +21,6 @@ export function sessionDetails(session){
   let hints={};
   try{hints=JSON.parse(session.browserDeviceHints)||{};}catch{}
   const appType=session.browserDisplayMode==='standalone'?'PWA':session.browserDisplayMode==='browser'?'Browser':null;
-  return {appName,appOrigin,appPath,...deviceInfo(session.userAgent,hints),appType};
+  const ip=typeof session.ipAddress==='string'?session.ipAddress.replace(/^::ffff:(?=\d+\.)/i,''):'';
+  return {appName,appOrigin,appPath,...deviceInfo(session.userAgent,hints),appType,ipAddress:isIP(ip)?ip:null,lastActiveAt:session.lastActiveAt||null};
 }

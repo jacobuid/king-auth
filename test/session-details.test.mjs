@@ -21,3 +21,7 @@ test('session labels identify the app and classify devices without exposing raw 
     assert.equal(details.appName,'Unknown app');assert.equal(details.appOrigin,null);assert.equal(details.device,'Unknown device');
   }
 });
+
+test('saved IPv4 and IPv6 addresses are displayed without forwarding invalid values',()=>{
+  for(const [ipAddress,expected] of [['::ffff:8.8.8.8','8.8.8.8'],['2603:8083:1440::1','2603:8083:1440::1'],['127.0.0.1','127.0.0.1'],['8.8.8.8, 1.1.1.1',null],[undefined,null]])assert.equal(sessionDetails({ipAddress}).ipAddress,expected);
+});

@@ -4,7 +4,7 @@
   "description": "Browser-only React authentication and optional backend helpers for King Auth",
   "type": "module",
   "exports": { ".": {"types":"./react.d.mts","default":"./react.mjs"}, "./server": {"types":"./server.d.mts","default":"./server.mjs"}, "./verifier": {"types":"./verifier.d.mts","default":"./verifier.mjs"}, "./react": {"types":"./react.d.mts","default":"./react.mjs"} },
-  "files": ["device-info.mjs", "app-info.mjs", "verifier.mjs", "verifier.d.mts", "server.mjs", "proxy.mjs", "browser.mjs", "routes.mjs", "password-policy.mjs", "password-toggle.mjs", "avatar.mjs", "react.mjs", "forms.mjs", "server.d.mts", "react.d.mts", "README.md"],
+  "files": ["session-view.mjs", "device-info.mjs", "app-info.mjs", "verifier.mjs", "verifier.d.mts", "server.mjs", "proxy.mjs", "browser.mjs", "routes.mjs", "password-policy.mjs", "password-toggle.mjs", "avatar.mjs", "react.mjs", "forms.mjs", "server.d.mts", "react.d.mts", "README.md"],
   "engines": { "node": ">=24" },
   "dependencies": { "openid-client": "^6.9.0", "jose": "^6.2.17" },
   "peerDependencies": { "react": ">=18" },

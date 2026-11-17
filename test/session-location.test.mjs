@@ -11,7 +11,7 @@ test('session location limits returned data and caches and deduplicates lookups'
     return Response.json(tyler);
   }});
   const [first,second]=await Promise.all([locate('8.8.8.8'),locate('::ffff:8.8.8.8')]);
-  assert.deepEqual(first,{city:'Tyler',region:'Texas',regionCode:'TX',countryCode:'US',label:'Tyler, TX'});
+  assert.deepEqual(first,{city:'Tyler',region:'Texas',regionCode:'TX',country:'United States',countryCode:'US',label:'Tyler, TX'});
   assert.deepEqual(first,second);assert.equal(calls,1);
   await locate('8.8.8.8');assert.equal(calls,1);
   time=86400001;await locate('8.8.8.8');assert.equal(calls,2);
@@ -25,12 +25,17 @@ test('private, invalid and missing addresses never leave the server',async()=>{
 });
 
 test('lookup errors, redirects, quotas, and missing cities return null and are briefly cached',async()=>{
-  for(const outcome of [()=>{throw Error('timeout');},()=>new Response(null,{status:302}),()=>new Response(null,{status:429}),()=>Response.json({success:false}),()=>Response.json({...tyler,city:''}),()=>new Response('invalid JSON')]){
+  for(const outcome of [()=>{throw Error('timeout');},()=>new Response(null,{status:302}),()=>new Response(null,{status:429}),()=>Response.json({success:false}),()=>new Response('invalid JSON')]){
     let calls=0,time=0;
     const locate=createSessionLocator({now:()=>time,fetch:async()=>{calls++;return outcome();}});
     assert.equal(await locate('8.8.8.8'),null);assert.equal(await locate('8.8.8.8'),null);assert.equal(calls,1);
     time=300001;assert.equal(await locate('8.8.8.8'),null);assert.equal(calls,2);
   }
+});
+
+test('location still shows the region or country when the provider has no city',async()=>{
+  const locate=createSessionLocator({fetch:async()=>Response.json({success:true,country_code:'US'})});
+  const location=await locate('8.8.8.8');assert.equal(location.city,'');assert.equal(location.country,'United States');assert.equal(location.label,'United States');
 });
 
 test('international cities include country and public IPv6 addresses are supported',async()=>{

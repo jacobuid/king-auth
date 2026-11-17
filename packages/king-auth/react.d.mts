@@ -4,6 +4,25 @@ export interface BrowserSession {
   session: {id: string;createdAt: string;expiresAt: string};
 }
 type EmbeddedSession=BrowserSession;
+export interface AccountSession {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  lastActiveAt: string | null;
+  current: boolean;
+  appName: string;
+  appOrigin: string | null;
+  appPath: string | null;
+  appType: 'PWA' | 'Browser' | null;
+  device: 'Phone' | 'Tablet' | 'Computer' | 'Unknown device';
+  deviceName: string;
+  osName: string | null;
+  browserName: string | null;
+  browserVersion: string | null;
+  ipAddress: string | null;
+  userAgent?: string | null;
+  location: {city: string;region: string;regionCode: string;country: string;countryCode: string;label: string} | null;
+}
 export interface AuthProviderProps { children?: ReactNode; mode?: 'browser'|'proxy'; apiUrl?: string; basePath?: string; appName?: string; appPath?: string }
 export interface AuthState {
   user: EmbeddedSession['user'] | null;

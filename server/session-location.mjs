@@ -30,15 +30,17 @@ export function createSessionLocator({enabled=true,fetch:send=globalThis.fetch,n
     entry.result=(async()=>{
       let location=null;
       try{
-        const response=await send('https://ipwho.is/'+encodeURIComponent(ip)+'?fields=success,city,region,region_code,country_code',{
+        const response=await send('https://ipwho.is/'+encodeURIComponent(ip)+'?fields=success,city,region,region_code,country,country_code',{
           redirect:'manual',signal:AbortSignal.timeout(2000),
         });
         if(response.ok){
           const data=await response.json();
           const city=text(data.city),region=text(data.region),regionCode=text(data.region_code),countryCode=text(data.country_code);
-          if(data.success===true&&city&&/^[A-Z]{2}$/.test(countryCode)){
+          const country=text(data.country)||(/^[A-Z]{2}$/.test(countryCode)?new Intl.DisplayNames(['en'],{type:'region'}).of(countryCode):'');
+          if(data.success===true&&/^[A-Z]{2}$/.test(countryCode)){
             const area=countryCode==='US'?(regionCode||region):(region||regionCode);
-            location={city,region,regionCode,countryCode,label:[city,area,...(countryCode==='US'?[]:[countryCode])].filter(Boolean).join(', ')};
+            const label=(city?[city,area,...(countryCode==='US'?[]:[countryCode])]:[region||regionCode,country]).filter(Boolean).join(', ');
+            location={city,region,regionCode,country,countryCode,label};
           }
         }
       }catch{}finally{active--;}
