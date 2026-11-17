@@ -49,7 +49,17 @@ Browser credentials live in sessionStorage by default or localStorage when remem
 
 Without React, `createBrowserClient()` exposes `request(route,body?)`, `getSession()`, `isSignedIn()`, `signOut()` and `getToken()` with the same storage/transport. It accepts optional `apiUrl` and injectable `fetch`.
 
-For private API data, send `Authorization: Bearer ${getToken()}` from your UI to your own trusted API. That API can use `createKingAuthVerifier({origin:'https://your-site.example'})` from `/server`, then `await verifier.getSession(req)` or `await verifier.isSignedIn(req)`. No adapter or secret is needed, but each backend request must verify authentication and apply its own permissions. Verification consults King Auth, returns null for invalid/revoked/wrong-origin sessions, and throws on service errors; deny access on errors. Browser-only login does not protect static files already delivered to users.
+For private API data, send `Authorization: Bearer ${getToken()}` from your UI to your own trusted API. That API can use `createKingAuthVerifier({origin:'https://your-site.example'})` from `/verifier`, then `await verifier.getSession(req)` or `await verifier.isSignedIn(req)`. No adapter or secret is needed, but each backend request must verify authentication and apply its own permissions. Verification consults King Auth, returns null for invalid/revoked/wrong-origin sessions, and throws on service errors; deny access on errors. Browser-only login does not protect static files already delivered to users.
+
+The standalone `/verifier` export uses web APIs without Node dependencies and supports Cloudflare Workers. Both session verification and reauthentication use manual redirects and reject redirect responses without following them. The existing `/server` export also provides the same verifier.
+
+```js
+import { createKingAuthVerifier } from '@jacobuid/king-auth/verifier';
+
+const verifier = createKingAuthVerifier({ origin: 'https://your-site.example' });
+// Inside your API handler; deny access if verification throws.
+const session = await verifier.getSession(request);
+```
 
 | Component | Purpose |
 | --- | --- |
