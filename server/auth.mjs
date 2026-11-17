@@ -9,8 +9,10 @@ import { abusePolicy } from './abuse.mjs';
 import {enforceBrowserSessionOrigin} from './session-origin.mjs';
 import {validNewPassword,PASSWORD_MESSAGE} from '../packages/king-auth/password-policy.mjs';
 import {reauthenticationPlugin} from './reauthentication.mjs';
+import {sessionDetails} from './session-details.mjs';
+import {createSessionLocator} from './session-location.mjs';
 
-export function createAuth({ config, database, sender }) {
+export function createAuth({ config, database, sender, locateSession=createSessionLocator({enabled:config.sessionGeolocation===true}) }) {
   const isAdmin = user => Boolean(user && config.adminIds.includes(user.id) && user.emailVerified);
   const approval=approvalPolicy(config,sender);
   const abuse=abusePolicy(config,sender);
@@ -84,7 +86,7 @@ export function createAuth({ config, database, sender }) {
         accountSessions: createAuthEndpoint('/account/sessions',{method:'GET',use:[sessionMiddleware]},async ctx=>{
           const current=ctx.context.session.session;
           const sessions=await ctx.context.internalAdapter.listSessions(ctx.context.session.user.id,{onlyActiveSessions:true});
-          return ctx.json(sessions.map(item=>({id:item.id,createdAt:item.createdAt,expiresAt:item.expiresAt,userAgent:item.userAgent,current:item.id===current.id})));
+          return ctx.json(await Promise.all(sessions.map(async item=>({id:item.id,createdAt:item.createdAt,expiresAt:item.expiresAt,userAgent:item.userAgent,...sessionDetails(item),location:await locateSession(item.ipAddress).catch(()=>null),current:item.id===current.id}))));
         }),
         accountRevoke: createAuthEndpoint('/account/revoke-session',{
           method:'POST',use:[freshSessionMiddleware],body:z.object({sessionId:z.string().min(1).max(128)}),

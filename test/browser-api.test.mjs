@@ -7,10 +7,10 @@ import {loadConfig} from '../server/config.mjs';
 import {createBrowserAPI} from '../server/browser-api.mjs';
 import {createKingAuthVerifier} from '../packages/king-auth/server.mjs';
 
-async function fixture({approval=false}={}){
+async function fixture({approval=false,locateSession}={}){
   const database=new DatabaseSync(':memory:');const sent=[],reviews=[];
   const config=loadConfig({AUTH_BASE_URL:'http://localhost:3000',SIGNUP_APPROVAL_REQUIRED:String(approval)});
-  const auth=createAuth({config,database,sender:{emailEnabled:true,smsEnabled:false,email:async data=>sent.push(data),signupRequest:async data=>reviews.push(data)}});
+  const auth=createAuth({config,database,locateSession,sender:{emailEnabled:true,smsEnabled:false,email:async data=>sent.push(data),signupRequest:async data=>reviews.push(data)}});
   await(await getMigrations(auth.options)).runMigrations();const api=createBrowserAPI({auth,config});
   const request=(route,body,{origin='https://family.example',token,headers={},method=body===undefined?'GET':'POST'}={})=>api(new Request(config.baseURL+'/api/browser/'+route,{method,headers:{Origin:origin,...(body===undefined?{}:{'Content-Type':'application/json'}),...(token?{Authorization:'Bearer '+token}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)}));
   const user={name:'Family',email:'browser@example.test',password:'Browser password 123!'};
@@ -74,5 +74,25 @@ test('browser signup keeps owner approval gate and hides review secrets',async()
   const f=await fixture({approval:true});try{
     const signup=await f.signup();assert.equal(signup.user.approvalStatus,'pending');assert.equal(signup.browserSession,undefined);assert.equal(signup.user.approvalApproveHash,undefined);assert.equal(f.reviews[0].ownerEmail,'jacobuid@gmail.com');
     assert.equal((await f.request('sign-in/email',{email:f.user.email,password:f.user.password})).status,403);
+  }finally{f.database.close();}
+});
+
+test('account sessions identify each app and device across sites and preserve revocation',async()=>{
+  const location={city:'Tyler',region:'Texas',regionCode:'TX',countryCode:'US',label:'Tyler, TX'};
+  const f=await fixture({locateSession:async()=>location});try{
+    const first=(await f.signup('https://king-sports.example')).browserSession.token;
+    const signedIn=await f.request('sign-in/email',{email:f.user.email,password:f.user.password,rememberMe:true},{origin:'https://other-app.example',headers:{'User-Agent':'Mozilla/5.0 (iPhone) Mobile'}});
+    assert.equal(signedIn.status,200);
+    const second=(await signedIn.json()).browserSession.token;
+    const response=await f.request('account/sessions',undefined,{origin:'https://king-sports.example',token:first});
+    assert.equal(response.status,200);
+    const sessions=await response.json();assert.equal(sessions.length,2);
+    const current=sessions.find(item=>item.current),other=sessions.find(item=>!item.current);
+    assert.equal(current.appName,'King Sports');assert.equal(current.appOrigin,'https://king-sports.example');
+    assert.equal(other.appName,'Other App');assert.equal(other.appOrigin,'https://other-app.example');assert.equal(other.device,'Phone');
+    for(const item of sessions){assert.ok(item.expiresAt);assert.equal(item.token,undefined);assert.equal(item.ipAddress,undefined);assert.deepEqual(item.location,location);}
+    assert.equal((await f.request('account/revoke-session',{sessionId:other.id},{origin:'https://king-sports.example',token:first})).status,200);
+    assert.equal(await(await f.request('get-session',undefined,{origin:'https://other-app.example',token:second})).json(),null);
+    assert.ok((await(await f.request('get-session',undefined,{origin:'https://king-sports.example',token:first})).json()).user);
   }finally{f.database.close();}
 });

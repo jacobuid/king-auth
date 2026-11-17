@@ -14,6 +14,7 @@ export function loadConfig(env = process.env) {
   if (production && (secret.startsWith('development-') || secret.length < 32)) throw new Error('Set a strong BETTER_AUTH_SECRET');
   return {
     production, baseURL: url.origin, secret,
+    sessionGeolocation: env.SESSION_GEOLOCATION==='true'||(production&&env.SESSION_GEOLOCATION!=='false'),
     database: env.DB_NAME ? { host: env.DB_HOST || 'localhost', port: Number(env.DB_PORT || 3306), database: env.DB_NAME, user: env.DB_USER, password: databasePassword, connectionLimit: 3, timezone: 'Z' } : null,
     sqlitePath: env.SQLITE_PATH || '.local/king-auth.sqlite',
     adminIds: (env.KING_AUTH_ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
