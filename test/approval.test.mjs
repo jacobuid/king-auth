@@ -22,7 +22,7 @@ async function fixture(){
 test('owner approval gates verified accounts; scanner GET, token secrecy, replay and decision binding',async()=>{
   const f=await fixture();try{
     const signup=await f.signup('new@example.test',{approvalStatus:'approved'});assert.equal(signup.status,200,JSON.stringify(signup.data));assert.equal(signup.data.user.approvalStatus,'pending');
-    assert.equal(signup.data.user.approvalApproveHash,undefined);assert.equal(f.reviews.length,1);assert.equal(f.reviews[0].ownerEmail,'jacobuid@gmail.com');
+    assert.equal(signup.data.user.approvalApproveHash,undefined);assert.equal(f.reviews.length,1);assert.deepEqual(f.reviews[0].ownerEmail,['jacobuid@gmail.com','jacobnkortni@gmail.com','kortnicct@gmail.com']);
     const verified=await f.request('/api/auth/email-otp/verify-email',{email:'new@example.test',otp:f.sent.at(-1).otp});assert.equal(verified.status,200);assert.equal(verified.data.token,null);
     const login=()=>f.request('/api/auth/sign-in/email',{email:'new@example.test',password:'Signup password 123!'});
     assert.equal((await login()).status,403);

@@ -94,7 +94,7 @@ test('browser duration, backend verifier and revocation preserve central policy'
 
 test('browser signup keeps owner approval gate and hides review secrets',async()=>{
   const f=await fixture({approval:true});try{
-    const signup=await f.signup();assert.equal(signup.user.approvalStatus,'pending');assert.equal(signup.browserSession,undefined);assert.equal(signup.user.approvalApproveHash,undefined);assert.equal(f.reviews[0].ownerEmail,'jacobuid@gmail.com');
+    const signup=await f.signup();assert.equal(signup.user.approvalStatus,'pending');assert.equal(signup.browserSession,undefined);assert.equal(signup.user.approvalApproveHash,undefined);assert.deepEqual(f.reviews[0].ownerEmail,['jacobuid@gmail.com','jacobnkortni@gmail.com','kortnicct@gmail.com']);
     assert.equal((await f.request('sign-in/email',{email:f.user.email,password:f.user.password})).status,403);
   }finally{f.database.close();}
 });

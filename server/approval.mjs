@@ -33,7 +33,7 @@ export function approvalPolicy(config,sender){
         const approve=randomBytes(32).toString('base64url'),deny=randomBytes(32).toString('base64url');
         await ctx.context.internalAdapter.updateUser(user.id,{approvalApproveHash:hash(approve),approvalDenyHash:hash(deny),approvalExpiresAt:new Date(Date.now()+7*86400000)});
         const link=(decision,token)=>config.baseURL+'/api/auth/signup-review?'+new URLSearchParams({userId:user.id,decision,token});
-        await sender.signupRequest({ownerEmail:config.approval.ownerEmail,email:user.email,userId:user.id,approveURL:link('approve',approve),denyURL:link('deny',deny)});
+        await sender.signupRequest({ownerEmail:config.approval.reviewEmails,email:user.email,userId:user.id,approveURL:link('approve',approve),denyURL:link('deny',deny)});
       },
     },
     async checkSession(userId,ctx){
