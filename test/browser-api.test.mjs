@@ -21,6 +21,28 @@ async function fixture({approval=false,locateSession}={}){
   return {database,auth,config,sent,reviews,api,request,user,signup};
 }
 
+test('routine session verification has a separate budget and preserves rate-limit responses',async()=>{
+  const f=await fixture();try{
+    const token=(await f.signup()).browserSession.token;
+    // Include the session check performed while issuing the browser token.
+    for(let i=1;i<600;i++){
+      const response=await f.request('get-session',undefined,{token});
+      assert.equal(response.status,200,`session check ${i}`);
+      assert.ok((await response.json()).session);
+    }
+    for(const [route,body] of [['get-session',undefined],['account/sessions',undefined],['reauthenticate',{action:'settings:change',password:f.user.password}]]){
+      const response=await f.request(route,body,{token});
+      assert.equal(response.status,429);
+      assert.ok(Number(response.headers.get('retry-after'))>0);
+      assert.equal(response.headers.get('access-control-allow-origin'),'*');
+      assert.equal(response.headers.get('access-control-expose-headers'),'Retry-After');
+      assert.ok((await response.json()).message);
+    }
+    // Exhausting session verification does not consume the sign-in budget.
+    assert.equal((await f.request('sign-in/email',{email:f.user.email,password:'wrong'})).status,401);
+  }finally{f.database.close();}
+});
+
 test('browser API supports arbitrary HTTPS sites, ignores cookies and enforces site-bound bearer sessions',async()=>{
   const f=await fixture();try{
     const signup=await f.signup();const token=signup.browserSession.token;assert.ok(token.includes('.'));assert.equal(signup.token,undefined);

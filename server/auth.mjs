@@ -42,6 +42,9 @@ export function createAuth({ config, database, sender, locateSession=createSessi
     }}}},
     advanced: { useSecureCookies: config.production, database: { generateId: 'uuid' }, ipAddress: { ipAddressHeaders: ['x-king-auth-client-ip'] } },
     rateLimit: { enabled: true, storage: 'database', window: 60, max: 60, customRules: {
+      // App page loads can verify a session on every request; keep this budget
+      // separate from credential attempts while retaining an abuse ceiling.
+      '/get-session': { window: 60, max: 600 },
       '/sign-in/*': { window: 60, max: 5 }, '/sign-up/*': { window: 60, max: 3 },
       '/email-otp/*': { window: 60, max: 5 }, '/phone-number/*': { window: 60, max: 5 },
       '/sign-in-code/send':{window:60,max:5},

@@ -2,17 +2,21 @@ import {AUTH_ROUTES,publicData} from '../packages/king-auth/routes.mjs';
 import {normalizeAppInfo} from '../packages/king-auth/app-info.mjs';
 
 const anonymous=new Set(['sign-in/email','sign-in/username','sign-in/phone-number','sign-up/email','sign-in-code/send','email-otp/send-verification-otp','email-otp/verify-email','email-otp/request-password-reset','email-otp/reset-password','phone-number/send-otp','phone-number/request-password-reset','phone-number/reset-password']);
+class SessionRateLimitError extends Error {
+  constructor(response){super('Session verification rate limited');this.response=response;}
+}
 function validOrigin(origin){
   try{const url=new URL(origin);return url.origin===origin&&(url.protocol==='https:'||(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)));}catch{return false;}
 }
 
 /** Cookie-free browser gateway. Public HTTPS origins, authenticated bearer requests. */
 export function createBrowserAPI({auth,config}){
-  const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Max-Age':'600','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
+  const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Expose-Headers':'Retry-After','Access-Control-Max-Age':'600','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
   const json=(status,data,extra={})=>new Response(JSON.stringify(data),{status,headers:{...cors,'Content-Type':'application/json',...extra}});
   async function session(headers,origin){
     const response=await auth.handler(new Request(config.baseURL+'/api/auth/get-session',{headers}));
     if(response.status===401)return null;
+    if(response.status===429)throw new SessionRateLimitError(response);
     if(!response.ok)throw Error('Session verification failed');
     const data=await response.json();if(!data?.session||!data?.user?.emailVerified)return null;
     const {adapter}=await auth.$context;
@@ -72,8 +76,15 @@ export function createBrowserAPI({auth,config}){
         const current=await session(headers,origin);if(!current)throw Error('Invalid new session');
         data={...data,browserSession:{token,expiresAt:current.session.expiresAt}};
       }
-      const retry=response.headers.get('retry-after');
+      const retry=response.headers.get('retry-after')||response.headers.get('x-retry-after');
       return json(response.status,data,retry?{'Retry-After':retry}:{});
-    }catch{return json(503,{message:'Authentication is temporarily unavailable. Please try again.'});}
+    }catch(error){
+      if(error instanceof SessionRateLimitError){
+        const retry=error.response.headers.get('retry-after')||error.response.headers.get('x-retry-after');
+        const data=await error.response.json().catch(()=>({message:'Too many requests. Please try again later.'}));
+        return json(429,publicData(data),retry?{'Retry-After':retry}:{});
+      }
+      return json(503,{message:'Authentication is temporarily unavailable. Please try again.'});
+    }
   };
 }
