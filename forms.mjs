@@ -7,20 +7,34 @@ import {SessionDetails} from './session-view.mjs';
 
 const h = React.createElement;
 const Context = createContext(null);
-export function AuthProvider({ children, mode='browser',apiUrl='https://kingauth.app/api/browser',basePath='/auth/api',appName,appPath }) {
+export function AuthProvider({ children, mode='browser',apiUrl='https://kingauth.app/api/browser',basePath='/auth/api',appName,appPath,sessionCheck='automatic' }) {
   if(!['browser','proxy'].includes(mode))throw Error('Choose browser or proxy auth mode');
   if(!basePath.startsWith('/')||basePath.startsWith('//')||basePath.includes('?')||basePath.includes('#'))throw Error('Use a same-origin auth basePath');
+  if(!['automatic','startup'].includes(sessionCheck))throw Error('Choose automatic or startup session checks');
   const browser=useMemo(()=>mode==='browser'?createBrowserClient({apiUrl,appName,appPath}):null,[mode,apiUrl,appName,appPath]);
   const [state,setState]=useState({user:null,session:null,isSignedIn:false,loading:true,error:null});
   const request=useCallback(async(route,body)=>{
     if(browser)return browser.request(route,body);
     const response=await fetch(basePath.replace(/\/$/,'')+'/'+route,{method:body===undefined?'GET':'POST',credentials:'same-origin',headers:body===undefined?undefined:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
     const data=await response.json();
-    if(!response.ok){const error=new Error(data?.message||'Authentication request failed');error.code=data?.code;error.status=response.status;throw error;}
+    if(!response.ok){const error=new Error(data?.message||'Authentication request failed');error.code=data?.code;error.status=response.status;error.retryAfter=response.headers.get('retry-after');throw error;}
     return data;
   },[basePath,browser]);
-  const refresh=useCallback(async()=>{try{const data=await request('get-session');setState({user:data?.user||null,session:data?.session||null,isSignedIn:!!data?.user,loading:false,error:null});return data;}catch(error){setState({user:null,session:null,isSignedIn:false,loading:false,error});throw error;}},[request]);
-  useEffect(()=>{let active=true;const check=()=>{if(active)refresh().catch(()=>{});};check();window.addEventListener('focus',check);window.addEventListener('storage',check);return()=>{active=false;window.removeEventListener('focus',check);window.removeEventListener('storage',check);};},[refresh]);
+  const pending=useRef(null);
+  const startup=useRef(null);
+  const refresh=useCallback(()=>{
+    if(pending.current?.request===request)return pending.current.promise;
+    const entry={request};
+    entry.promise=(async()=>{try{const data=await request('get-session');setState({user:data?.user||null,session:data?.session||null,isSignedIn:!!data?.user,loading:false,error:null});return data;}catch(error){setState(previous=>error.status===401?{user:null,session:null,isSignedIn:false,loading:false,error}:{...previous,loading:false,error});throw error;}finally{if(pending.current===entry)pending.current=null;}})();
+    pending.current=entry;return entry.promise;
+  },[request]);
+  useEffect(()=>{
+    const check=()=>{refresh().catch(()=>{});};
+    if(startup.current!==refresh){startup.current=refresh;check();}
+    if(sessionCheck==='startup')return;
+    window.addEventListener('focus',check);window.addEventListener('storage',check);
+    return()=>{window.removeEventListener('focus',check);window.removeEventListener('storage',check);};
+  },[refresh,sessionCheck]);
   const call=useCallback(async(route,body)=>{const data=await request(route,body);if(body!==undefined&&!['reauthenticate','reauthentication/consume'].includes(route))await refresh();return data;},[request,refresh]);
   const reauthenticate=useCallback((action,password)=>request('reauthenticate',{action,password}),[request]);
   const signOut=useCallback(()=>call('sign-out',{}),[call]);
