@@ -23,14 +23,15 @@ export interface AccountSession {
   userAgent?: string | null;
   location: {city: string;region: string;regionCode: string;country: string;countryCode: string;label: string} | null;
 }
-export interface AuthProviderProps { children?: ReactNode; mode?: 'browser'|'proxy'; apiUrl?: string; basePath?: string; appName?: string; appPath?: string }
+export interface AuthProviderProps { children?: ReactNode; mode?: 'browser'|'proxy'; apiUrl?: string; basePath?: string; appName?: string; appPath?: string; sessionCheck?: 'automatic'|'startup' }
+export interface AuthError extends Error {code?: string;status?: number;retryAfter?: string | null}
 export interface AuthState {
   user: EmbeddedSession['user'] | null;
   session: EmbeddedSession['session'] | null;
   isSignedIn: boolean;
   isLoading: boolean;
   loading: boolean;
-  error: Error | null;
+  error: AuthError | null;
   refresh(): Promise<EmbeddedSession | null>;
   call(route: string, body?: Record<string, unknown>): Promise<unknown>;
   signOut(): Promise<unknown>;
