@@ -7,7 +7,7 @@ import {SessionDetails} from './session-view.mjs';
 
 const h = React.createElement;
 const Context = createContext(null);
-export function AuthProvider({ children, mode='browser',apiUrl='https://kingauth.app/api/browser',basePath='/auth/api',appName,appPath,sessionCheck='automatic' }) {
+export function AuthProvider({ children, mode='browser',apiUrl='https://kingauth.app/api/browser',basePath='/auth/api',appName,appPath,sessionCheck='startup' }) {
   if(!['browser','proxy'].includes(mode))throw Error('Choose browser or proxy auth mode');
   if(!basePath.startsWith('/')||basePath.startsWith('//')||basePath.includes('?')||basePath.includes('#'))throw Error('Use a same-origin auth basePath');
   if(!['automatic','startup'].includes(sessionCheck))throw Error('Choose automatic or startup session checks');
@@ -38,7 +38,18 @@ export function AuthProvider({ children, mode='browser',apiUrl='https://kingauth
   const call=useCallback(async(route,body)=>{const data=await request(route,body);if(body!==undefined&&!['reauthenticate','reauthentication/consume'].includes(route))await refresh();return data;},[request,refresh]);
   const reauthenticate=useCallback((action,password)=>request('reauthenticate',{action,password}),[request]);
   const signOut=useCallback(()=>call('sign-out',{}),[call]);
-  return h(Context.Provider,{value:{...state,isLoading:state.loading,refresh,call,signOut,reauthenticate,getToken:()=>browser?.getToken()||null}},children);
+  const getAccessToken=useCallback(async()=>{
+    if(!browser)throw Error('Access passes require browser mode');
+    try{
+      const token=await browser.getAccessToken();
+      if(!token&&!browser.getToken())setState({user:null,session:null,isSignedIn:false,loading:false,error:null});
+      return token;
+    }catch(error){
+      if(error.status===401&&!browser.getToken())setState({user:null,session:null,isSignedIn:false,loading:false,error});
+      throw error;
+    }
+  },[browser]);
+  return h(Context.Provider,{value:{...state,isLoading:state.loading,refresh,call,signOut,reauthenticate,getToken:()=>browser?.getToken()||null,getAccessToken}},children);
 }
 export function useAuth(){const value=useContext(Context);if(!value)throw Error('Wrap King Auth components in AuthProvider');return value;}
 export function useSession(){return useAuth();}

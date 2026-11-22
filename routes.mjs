@@ -1,6 +1,7 @@
 // Shared public operations. Owner/admin/OAuth endpoints are deliberately absent.
 export const AUTH_ROUTES=new Map([
   ['get-session',['GET',[]]],['sign-out',['POST',[]]],
+  ['access-pass',['GET',[]]],['jwks',['GET',[]]],
   ['reauthenticate',['POST',['password','action']]],
   ['reauthentication/consume',['POST',['proof','action']]],
   ['sign-in/email',['POST',['email','password','rememberMe','loginCode']]],

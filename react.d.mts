@@ -37,6 +37,7 @@ export interface AuthState {
   signOut(): Promise<unknown>;
   reauthenticate(action: string,password: string): Promise<ReauthenticationProof>;
   getToken(): string | null;
+  getAccessToken(): Promise<string | null>;
 }
 export interface FormProps {
   className?: string;
@@ -88,6 +89,7 @@ export function gravatarUrl(email?: string,size?: number): Promise<string|null>;
 export function createBrowserClient(options?: {apiUrl?: string;appName?: string;appPath?: string;fetch?: typeof globalThis.fetch}): {
   request(route: string,body?: Record<string,unknown>): Promise<any>;
   getToken(): string | null;
+  getAccessToken(): Promise<string | null>;
   getSession(): Promise<EmbeddedSession | null>;
   isSignedIn(): Promise<boolean>;
   signOut(): Promise<unknown>;
