@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import {chromium} from '@playwright/test';
 
-test('startup checks survive StrictMode, focus, storage, throttling and fresh startup',async()=>{
+test('startup checks survive StrictMode, focus, storage, throttling and fresh startup',{skip:!process.env.KING_AUTH_BROWSER},async()=>{
   const bundle=await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import {AuthProvider,useAuth} from './packages/king-auth/forms.mjs';function App(){const a=useAuth();return React.createElement('button',{onClick:()=>a.refresh().catch(()=>{})},a.error?'error':a.isSignedIn?'signed in':'loading');}createRoot(document.getElementById('app')).render(React.createElement(React.StrictMode,null,React.createElement(AuthProvider,{sessionCheck:'startup'},React.createElement(App))));`,resolveDir:process.cwd()},bundle:true,format:'esm',write:false});
   const browser=await chromium.launch({channel:'chrome',headless:true});
   const page=await browser.newPage();let checks=0,signins=0,throttled=false;

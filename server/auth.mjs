@@ -45,7 +45,8 @@ export function createAuth({ config, database, sender, locateSession=createSessi
       // App page loads can verify a session on every request; keep this budget
       // separate from credential attempts while retaining an abuse ceiling.
       '/get-session': { window: 60, max: 600 },
-      '/sign-in/*': { window: 60, max: 5 }, '/sign-up/*': { window: 60, max: 3 },
+      // Coarse traffic ceiling only; abusePolicy counts failed passwords per account.
+      '/sign-in/*': { window: 60, max: 60 }, '/sign-up/*': { window: 60, max: 3 },
       '/email-otp/*': { window: 60, max: 5 }, '/phone-number/*': { window: 60, max: 5 },
       '/sign-in-code/send':{window:60,max:5},
       '/reauthenticate':{window:60,max:5},

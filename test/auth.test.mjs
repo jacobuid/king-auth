@@ -120,9 +120,9 @@ test('verified phone changes preserve identity and cannot use an email code',asy
   }finally{f.database.close();}
 });
 
-test('login rate limiting persists in the database',async()=>{
+test('coarse login traffic limiting persists in the database',async()=>{
   const f=await fixture();try{
-    for(let i=0;i<5;i++) await f.request('/sign-in/email',{email:'nobody@example.test',password:'An incorrect password!'});
+    for(let i=0;i<60;i++) await f.request('/sign-in/email',{email:'nobody@example.test',password:'An incorrect password!'});
     const limited=await f.request('/sign-in/email',{email:'nobody@example.test',password:'An incorrect password!'});assert.equal(limited.status,429);
   }finally{f.database.close();}
 });
@@ -148,4 +148,18 @@ test('installable server helper validates an actual OIDC callback',async()=>{
     await assert.rejects(()=>client.complete(consent.data.url,{...transaction,state:'attacker'}));
     await assert.rejects(()=>client.complete(consent.data.url,{...transaction,createdAt:0}));
   }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));f.database.close();}
+});
+
+
+test('ten successful logins from one IP do not exhaust the failed-password budget',async()=>{
+  const f=await fixture();try{
+    const user=await f.verifiedUser();
+    for(let i=0;i<10;i++){
+      const result=await f.request('/sign-in/email',{email:user.email,password:user.password});
+      assert.equal(result.status,200,JSON.stringify(result.data));
+    }
+    assert.equal(f.database.prepare('SELECT failedSignIns FROM user WHERE id=?').get(user.id).failedSignIns,0);
+    assert.equal((await f.request('/sign-in/email',{email:user.email,password:'Wrong password 123!'})).status,401);
+    assert.equal(f.database.prepare('SELECT failedSignIns FROM user WHERE id=?').get(user.id).failedSignIns,1);
+  }finally{f.database.close();}
 });
