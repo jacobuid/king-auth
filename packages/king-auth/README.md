@@ -8,7 +8,7 @@ Password policy: 8–128 characters with uppercase, lowercase, a number, and a s
 npm install github:jacobuid/king-auth#sdk
 ```
 
-Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.4.0); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
+Use `@jacobuid/king-auth` in imports. The automatically maintained `sdk` branch contains just this package (version 0.5.0); `main` is the server/workspace and should not be used as the npm install target. Git must be installed. Commit your app's `package-lock.json` to pin the resolved Git commit. Rerun the install command to update, or replace `sdk` with a full commit SHA from that branch to pin explicitly. No npm registry publication or manual packing is required.
 
 ## Optional backend adapter
 
@@ -43,11 +43,11 @@ function MyRoutes(){
 
 `AuthProvider` defaults to `mode="browser"`, calling `https://kingauth.app/api/browser` directly. Override `apiUrl` for a local auth service. Any HTTPS origin or explicit HTTP loopback development origin is accepted, without per-site registration. Requests omit cookies and use signed bearer credentials, so third-party-cookie support is unnecessary. The public gateway excludes owner/admin/OAuth operations and binds sessions to the originating site. One shared account UUID, independent sign-in on each site, no automatic SSO.
 
-`useAuth()` (alias `useSession()`) exposes `user`, `session`, `isSignedIn`, `isLoading`/`loading`, `error`, `refresh()`, `signOut()`, and `getToken()`. It checks on mount, focus and browser storage changes by default. Use `<AuthProvider sessionCheck="startup">` at the app root to check once per provider lifetime, including React StrictMode effect replay, without focus or storage checks. Fresh PWA startup verifies the saved token, never resubmitting a password. Explicit `refresh()` and successful account actions still update the session. `call(route, body?)` is available for custom UI; omitting body makes a GET. `RequireAuth` accepts `children` and `fallback` for display only. In proxy mode, `basePath` matches your adapter and `getToken()` returns null.
+`useAuth()` (alias `useSession()`) exposes `user`, `session`, `isSignedIn`, `isLoading`/`loading`, `error`, `refresh()`, `signOut()`, `getToken()`, and async `getAccessToken()`. Startup-only checking is the default: mount `<AuthProvider>` at the app root to check once per provider lifetime, including React StrictMode effect replay, without focus or storage checks. Opt into the older focus/storage behavior with `sessionCheck="automatic"`. Fresh PWA startup verifies the saved token, never resubmitting a password. Explicit `refresh()` and successful account actions still update the session. `call(route, body?)` is available for custom UI; omitting body makes a GET. `RequireAuth` accepts `children` and `fallback` for display only. In proxy mode, `basePath` matches your adapter and `getToken()` returns null.
 
 Browser credentials live in sessionStorage by default or localStorage when remembered; **page JavaScript can access them**. Only enter credentials on trusted sites, protect against XSS, and never put bearer tokens into URLs/logs. Clearing/evicting storage can end persistence sooner. Credentials are opaque, not client-decodable JWT identity claims. Use `getSession()`/`isSignedIn()` to check centrally; decoding stored state alone is not authentication.
 
-Without React, `createBrowserClient()` exposes `request(route,body?)`, `getSession()`, `isSignedIn()`, `signOut()` and `getToken()` with the same storage/transport. It accepts optional `apiUrl` and injectable `fetch`.
+Without React, `createBrowserClient()` exposes `request(route,body?)`, `getSession()`, `isSignedIn()`, `signOut()`, `getToken()`, and `getAccessToken()` with the same storage/transport. It accepts optional `apiUrl` and injectable `fetch`.
 
 For private API data, send `Authorization: Bearer ${getToken()}` from your UI to your own trusted API. That API can use `createKingAuthVerifier({origin:'https://your-site.example'})` from `/verifier`, then `await verifier.getSession(req)` or `await verifier.isSignedIn(req)`. No adapter or secret is needed, but each backend request must verify authentication and apply its own permissions. Verification consults King Auth, returns null for invalid/revoked/wrong-origin sessions, and throws on service errors; deny access on errors. Browser-only login does not protect static files already delivered to users.
 
@@ -237,6 +237,49 @@ For persistence across PWA restarts, select Stay signed in at sign-in or choose 
 
 Rate limits use `req.socket.remoteAddress`, overwriting client-supplied internal IP headers. Behind Passenger or a reverse proxy, compare socket addresses for two users on different networks using temporary server diagnostics. If both show the proxy address, they share the coarse 60-per-minute sign-in traffic ceiling and separate session-check limit. A trusted-proxy configuration needs documented host proxy addresses and header guarantees; do not accept arbitrary forwarded IP headers. Local source cannot establish what the live host supplies.
 
-Backend authorization remains separate: `createKingAuthVerifier` verifies centrally on every call and currently offers no verification cache. Keep these checks on protected requests. Startup-only checking controls the UI lifecycle.
+Backend authorization remains separate: use short-lived access passes with local signature verification below, or retain the default central verification for immediate revocation checks. Never skip authorization on protected requests.
 
 The five-attempt account protection counts incorrect passwords only, across IPs and apps, and resets after a successful sign-in. Successful logins do not consume that failure budget. A separate 60-request-per-minute per-IP sign-in ceiling limits bulk traffic (including requests for nonexistent accounts); it counts both successful and failed requests.
+
+## Short-lived access passes (SDK 0.5)
+
+Remembered opaque sessions still have a fixed three-year maximum and live in localStorage; closing the PWA preserves them. Unremembered logins still use sessionStorage with a one-day maximum. Clearing website data, signing out, revocation, expiry, or an owner lock prevents future renewal. Access passes are separate signed JWTs, kept only in memory, valid for at most 30 minutes and never beyond the session deadline.
+
+On startup the single get-session check also issues an access pass. Successful login issues one too. Call async getAccessToken() immediately before each request to your trusted API: it returns the cached pass or renews it silently using the opaque session. Concurrent callers share one renewal. There are no renewal timers, focus checks, or password submissions; idle apps make no renewal calls. A 429 respects Retry-After, temporary failures preserve saved login, and failed renewal never falls back to an expired pass. A fresh PWA process checks centrally once even if a previous pass has time remaining.
+
+Frontend (inside AuthProvider):
+
+```jsx
+const {getAccessToken} = useAuth();
+async function loadPlaylists() {
+  const token = await getAccessToken();
+  if (!token) throw new Error('Sign in to continue');
+  const response = await fetch('/api/playlists', {
+    headers: {Authorization: 'Bearer ' + token},
+  });
+  if (!response.ok) throw new Error('Unable to load playlists');
+  return response.json();
+}
+```
+
+Backend (create one verifier per process or Worker isolate and reuse it):
+
+```js
+import {createKingAuthVerifier} from '@jacobuid/king-auth/verifier';
+const auth = createKingAuthVerifier({
+  origin: 'https://your-music-app.example', // frontend's exact origin
+  verification: 'access-pass',
+});
+// For every protected request:
+const identity = await auth.getSession(request);
+// null means 401; exceptions mean deny access / 503.
+// Apply your own resource permissions using identity.user.id.
+```
+
+This mode checks signatures locally using KingAuth's existing database-backed Ed25519 signing keys. It pins the issuer, algorithm, app origin audience, pass kind, verified user, session ID, issue time, and expiry. Public JWKS keys are fetched once and cached for an hour per verifier; missing-key refreshes have a 30-second cooldown for rotation. Key-fetch failures deny access. It uses [jose's remote JWKS cache](https://github.com/panva/jose/blob/main/docs/jwks/remote/interfaces/RemoteJWKSetOptions.md), not a cache of successful user authorizations. Do not construct a verifier per request, trust a decoded JWT, or accept the long-lived getToken() value as an access pass. Passes are origin scoped; paths on a shared origin are not separate security boundaries.
+
+**Revocation window:** a previously issued pass can remain usable for up to 30 minutes after sign-out, revocation, password change, or account lock. User/profile/permission changes may also take that long to be reflected in the claims. A pass's session.expiresAt describes the remembered session, not the pass lifetime; the verifier enforces JWT exp separately. Use current app-side permissions and central checks for actions requiring immediate revocation. Do not cache private API responses publicly.
+
+Password confirmations remain deliberate central operations. Reauthenticate continues to use the long-lived session internally. To consume its single-use proof, send getToken() in the Authorization header of the restricted-action request and call verifyReauthentication(request,{proof,action}) on the backend before performing the action. Use a separate central-mode verifier for that request if you also need getSession(); an access-pass-mode verifier intentionally rejects opaque sessions. A short-lived access pass alone cannot confirm a password or consume a proof.
+
+Compatibility: getToken() retains its existing synchronous opaque-session behavior. createKingAuthVerifier still defaults to verification: 'central', contacting KingAuth on each call for immediate session revocation. Switch frontend and backend together to the access-pass APIs to reduce traffic. The optional proxy/HttpOnly adapter keeps its existing central verification; access passes currently apply to browser mode only. SDK 0.5 changes AuthProvider's default from automatic to startup checking.

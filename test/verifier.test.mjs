@@ -11,8 +11,9 @@ const proof={proof:'proof',action:'settings:change'};
 test('standalone verifier bundles for edge runtimes and preserves the server export',async()=>{
   assert.equal(serverVerifier,createKingAuthVerifier);
   const contents=await readFile(new URL('../packages/king-auth/verifier.mjs',import.meta.url),'utf8');
-  const result=await build({stdin:{contents},bundle:true,platform:'browser',format:'esm',write:false,metafile:true});
-  assert.deepEqual(Object.keys(result.metafile.inputs),['<stdin>']);
+  const result=await build({stdin:{contents,resolveDir:process.cwd()},bundle:true,platform:'browser',format:'esm',write:false,metafile:true});
+  assert.ok(Object.keys(result.metafile.inputs).some(name=>name.includes('jose')));
+  assert.ok(!result.outputFiles[0].text.includes('node:crypto'));
 });
 
 test('Workers-compatible fetch verifies sessions and reauthentication',async()=>{

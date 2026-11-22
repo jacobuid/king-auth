@@ -13,6 +13,18 @@ function validOrigin(origin){
 export function createBrowserAPI({auth,config}){
   const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Expose-Headers':'Retry-After','Access-Control-Max-Age':'600','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
   const json=(status,data,extra={})=>new Response(JSON.stringify(data),{status,headers:{...cors,'Content-Type':'application/json',...extra}});
+  async function withAccessPass(current,origin){
+    if(!current)return null;
+    const now=Math.floor(Date.now()/1000);
+    const expires=Math.min(now+1800,Math.floor(Date.parse(current.session.expiresAt)/1000));
+    if(expires<=now)return null;
+    const {token}=await auth.api.signJWT({body:{payload:{
+      iss:config.baseURL+'/api/browser',aud:origin,sub:current.user.id,
+      iat:now,exp:expires,kind:'king-auth-access',sid:current.session.id,
+      user:current.user,session:current.session,
+    }}});
+    return {...current,accessPass:{token,expiresAt:new Date(expires*1000).toISOString()}};
+  }
   async function session(headers,origin){
     const response=await auth.handler(new Request(config.baseURL+'/api/auth/get-session',{headers}));
     if(response.status===401)return null;
@@ -43,7 +55,11 @@ export function createBrowserAPI({auth,config}){
     const headers=new Headers({Origin:config.baseURL,'x-king-auth-browser-origin':origin,'x-king-auth-client-ip':request.headers.get('x-king-auth-client-ip')||'127.0.0.1','User-Agent':request.headers.get('user-agent')||'King Auth browser'});
     if(authorization)headers.set('Authorization',authorization);
     try{
-      if(route==='get-session')return json(200,authorization?await session(headers,origin):null);
+      if(route==='jwks'){
+        const response=await auth.handler(new Request(config.baseURL+'/api/auth/jwks',{headers}));
+        return json(response.status,await response.json(),response.ok?{'Cache-Control':'public, max-age=3600'}:{});
+      }
+      if(route==='get-session'||route==='access-pass')return json(200,authorization?await withAccessPass(await session(headers,origin),origin):null);
       if(!anonymous.has(route)&&(!authorization||!await session(headers,origin)))return json(401,{message:'Sign in first'});
       let body;
       if(request.method==='POST'){
@@ -74,7 +90,8 @@ export function createBrowserAPI({auth,config}){
           if(!duration.ok)throw Error('Could not apply session duration');
         }
         const current=await session(headers,origin);if(!current)throw Error('Invalid new session');
-        data={...data,browserSession:{token,expiresAt:current.session.expiresAt}};
+        const granted=await withAccessPass(current,origin);
+        data={...data,browserSession:{token,expiresAt:current.session.expiresAt},accessPass:granted?.accessPass};
       }
       const retry=response.headers.get('retry-after')||response.headers.get('x-retry-after');
       return json(response.status,data,retry?{'Retry-After':retry}:{});

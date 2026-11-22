@@ -1,6 +1,6 @@
 {
   "name": "@jacobuid/king-auth",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Browser-only React authentication and optional backend helpers for King Auth",
   "type": "module",
   "exports": { ".": {"types":"./react.d.mts","default":"./react.mjs"}, "./server": {"types":"./server.d.mts","default":"./server.mjs"}, "./verifier": {"types":"./verifier.d.mts","default":"./verifier.mjs"}, "./react": {"types":"./react.d.mts","default":"./react.mjs"} },
